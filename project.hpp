@@ -23,7 +23,6 @@ enum DependencyType {
 };
 
 struct Project;
-struct ProjectInstance;
 class Workspace;
 struct TaskTemplate;
 
@@ -101,7 +100,7 @@ public:
 
     inline virtual int get_template_id() const { return -1; }
     inline virtual bool is_recursive() const { return false; }
-    inline virtual ProjectInstance * get_child() { return nullptr; }
+    inline virtual Project * get_child() { return nullptr; }
     virtual void set_template_id(int) {}; // do nothing
     virtual float duration_in_days() const = 0;
     virtual bool contains(const Project * const proj) const = 0;
@@ -141,23 +140,9 @@ public:
 
 };
 
-struct ProjectInstance
-{
-    Project & original;
-    std::uint64_t unixtime_start;
-
-    inline ProjectInstance(Project & orig, uint64_t start_unixtime)
-        : original(orig)
-        , unixtime_start(start_unixtime)
-    {}
-
-    std::uint64_t unixtime_end_offset() const;
-    uint64_t duration_in_seconds() const;
-};
-
 class Task_SubProject : public Task_Base
 {
-    ProjectInstance child;
+    Project & child;
 
 public:
     inline Task_SubProject( Project & project
@@ -166,16 +151,16 @@ public:
                           , std::string description
                           , float unit_count_forecast
                           , float units_done_count
-                          , ProjectInstance p
+                          , Project & p
                           )
         : Task_Base(project, id, name, description, unit_count_forecast, units_done_count)
         , child(p)
     {}
 
     inline virtual bool is_recursive() const override { return true; }
-    inline virtual ProjectInstance * get_child() override { return &child; }
+    inline virtual Project * get_child() override { return &child; }
     virtual float duration_in_days() const override;
-    inline virtual uint64_t duration_in_seconds() const { return child.duration_in_seconds(); }
+    virtual uint64_t duration_in_seconds() const override;
     virtual bool contains(const Project * const p) const override;
     virtual std::string to_json(TaskID tid) const override;
     virtual std::string get_full_display_name() const override;
@@ -217,7 +202,7 @@ struct Project
         if (child.contains(this))
             return -1;
 
-        auto [it,b] = tasks.insert({next_task_id , std::make_unique<Task_SubProject>(*this, -1, "", "", 1, 0, ProjectInstance(child, 0))});
+        auto [it,b] = tasks.insert({next_task_id , std::make_unique<Task_SubProject>(*this, -1, "", "", 1, 0, child)});
         if(!b)
             return -1;
         it->second->set_id(it->first);

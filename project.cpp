@@ -51,11 +51,11 @@ std::string Task_Templated::get_full_display_name() const
 
 float Task_SubProject::duration_in_days() const
 {
-    return child.original.duration_in_seconds() / 86400;
+    return child.duration_in_seconds() / 86400;
 }
 bool Task_SubProject::contains(const Project * const p) const
 {
-    return (&child.original == p) || child.original.contains(p);
+    return (&child == p) || child.contains(p);
 }
 std::string Task_SubProject::to_json(TaskID tid) const
 {
@@ -65,14 +65,14 @@ std::string Task_SubProject::to_json(TaskID tid) const
        << ", \"description\": \""       << this->get_description() << "\""
        << ", \"unit_count_forecast\": " << this->get_unit_count_forecast()
        << ", \"units_done_count\": "    << this->get_units_done_count()
-       << ", \"project_filename\": \""    << this->child.original.filename << "\""
+       << ", \"project_filename\": \""    << this->child.filename << "\""
        << "}"
        ;
     return ss.str();
 }
 std::string Task_SubProject::get_full_display_name() const
 {
-    return get_name() + ((get_name().size())?" < ":"") + child.original.name + " < " + get_project().name;
+    return get_name() + ((get_name().size())?" < ":"") + child.name + " < " + get_project().name;
 }
 
 
@@ -239,13 +239,17 @@ TaskTemplate & Project::get_task_template(TemplateID id) { return workspace.get_
 std::map<uint64_t,TaskTemplate> & Project::get_task_templates() { return workspace.get_task_templates(); }
 Workspace & Project::get_workspace() { return workspace; }
 
-std::uint64_t ProjectInstance::unixtime_end_offset() const
+uint64_t Task_SubProject::duration_in_seconds() const
 {
-    std::uint64_t end_unixtime = 0;
-    for (auto & task : original.tasks)
-        end_unixtime = std::max(end_unixtime, task.second->unixtime_end_offset());
-    return end_unixtime;
+    return child.duration_in_seconds();
 }
-uint64_t ProjectInstance::duration_in_seconds() const { return original.duration_in_seconds(); }
+
+//std::uint64_t ProjectInstance::unixtime_end_offset() const
+//{
+//    std::uint64_t end_unixtime = 0;
+//    for (auto & task : original.tasks)
+//        end_unixtime = std::max(end_unixtime, task.second->unixtime_end_offset());
+//    return end_unixtime;
+//}
 
 } // namespace

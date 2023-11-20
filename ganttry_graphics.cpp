@@ -110,10 +110,10 @@ void NamesGraphicsScene::redraw()
 
                 if (task.second->is_recursive())
                 {
-                    Project & subproject = task.second->get_child()->original;
+                    Project & subproject = *task.second->get_child();
                     std::vector<std::tuple<TaskID,Project*>> project_tree_path_copy = project_tree_path;
                     project_tree_path_copy.push_back({task.second->get_id(), &subproject});
-                    redraw_project(task.second->get_child()->original, depth+1, project_tree_path_copy, base_start_time + task.second->get_unixtime_start_offset());
+                    redraw_project(*task.second->get_child(), depth+1, project_tree_path_copy, base_start_time + task.second->get_unixtime_start_offset());
                 }
             }
         };
@@ -380,7 +380,7 @@ void GanttGraphicsScene::redraw()
                 }
                 i++;
                 if (p.second->is_recursive())
-                    draw_arrows(project_tree_path + std::make_tuple(p.second->get_id(), &p.second->get_child()->original));
+                    draw_arrows(project_tree_path + std::make_tuple(p.second->get_id(), p.second->get_child()));
             }
         };
     draw_arrows({{0,project}});

@@ -672,7 +672,7 @@ void MainWindow::load_project(ganttry::Project & project, QString filename)
                     , tasks[i].toObject()["description"].toString().toStdString()
                     , (float)tasks[i].toObject()["unit_count_forecast"].toDouble()
                     , (float)tasks[i].toObject()["units_done_count"].toDouble()
-                    , ganttry::ProjectInstance(*proj, 0)
+                    , *proj
                     )
                 );
         }
