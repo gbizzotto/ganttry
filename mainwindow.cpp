@@ -17,6 +17,7 @@
 #include <QTimer>
 #include <QMouseEvent>
 #include <QSettings>
+#include <QCommonStyle>
 
 #include "project.hpp"
 #include "workspace.hpp"
@@ -178,16 +179,22 @@ void MainWindow::resizeEvent(QResizeEvent* event)
 
 void MainWindow::refresh_workspace_tree()
 {
+    QCommonStyle cs;
+
     ui->workspaceTreeWidget->clear();
 
-    auto t = new QTreeWidgetItem(QStringList() << QString(workspace->get_changed() ? "*" : "") + QString::fromStdString(workspace->get_name()));
+    auto t = new QTreeWidgetItem(QStringList() << QString(QString::fromStdString(workspace->get_name())));
+    if (workspace->get_changed())
+        t->setIcon(0, cs.standardIcon(QStyle::SP_DriveFDIcon));
     t->setData(0, Qt::ItemDataRole::UserRole, (int)-1);
     t->setFlags(t->flags() | Qt::ItemIsEditable);
     for (size_t i=0 ; i<workspace->get_projects().size() ; i++)
     {
         auto & p = workspace->get_projects()[i];
 
-        QTreeWidgetItem * child = new QTreeWidgetItem(QStringList() << QString(p->changed ? "*" : "") + QString::fromStdString(p->name));
+        QTreeWidgetItem * child = new QTreeWidgetItem(QStringList() << QString::fromStdString(p->name));
+        if (p->changed)
+            child->setIcon(0, cs.standardIcon(QStyle::SP_DriveFDIcon));
         child->setData(0, Qt::ItemDataRole::UserRole, (int)i);
         child->setFlags(child->flags() | Qt::ItemIsEditable);
         t->addChild(child);
@@ -756,11 +763,14 @@ void MainWindow::on_workspaceTreeWidget_itemChanged(QTreeWidgetItem *item, [[may
     if (idx < -1 || idx >= (int)workspace->get_projects().size())
         return;
 
+    std::string new_name = item->text(0).toStdString();
+
     if (idx == -1) {
-        workspace->set_name(item->text(0).toStdString());
+        workspace->set_name(new_name);
     } else {
-        workspace->get_projects()[idx]->changed |= workspace->get_projects()[idx]->name != item->text(0).toStdString();
-        workspace->get_projects()[idx]->name = item->text(0).toStdString();
+        workspace->get_projects()[idx]->changed |= workspace->get_projects()[idx]->name != new_name;
+        workspace->get_projects()[idx]->name = new_name;
+        names_scene.redraw();
     }
 
     refresh_workspace_tree();
