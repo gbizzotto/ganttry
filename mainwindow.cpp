@@ -59,6 +59,8 @@ MainWindow::MainWindow(QWidget *parent)
     ui->dragHWidget->installEventFilter(this);
     ui->dragVWidget->installEventFilter(this);
 
+    QObject::connect(ui->workspaceTreeWidget, &QTreeWidget::customContextMenuRequested, this, &MainWindow::workspaceTreeWidget_menu);
+
     //ui->workspaceTreeWidget->resize(ui->names_view->geometry().width(), ui->zoomSlider->geometry().height() + ui->dates_view->geometry().height());
     //while(ui->workspaceTreeWidget->geometry().height() != ui->zoomSlider->geometry().height() + ui->dates_view->geometry().height())
     //{
@@ -115,6 +117,15 @@ MainWindow::MainWindow(QWidget *parent)
 MainWindow::~MainWindow()
 {
     delete ui;
+}
+
+void MainWindow::workspaceTreeWidget_menu(const QPoint & pos)
+{
+    QMenu menu(ui->workspaceTreeWidget);
+    QAction * action_add_task = menu.addAction("Add New Project");
+    auto action = menu.exec(ui->workspaceTreeWidget->mapToGlobal(pos));
+    if (action == action_add_task)
+        on_projectActionNew_triggered();
 }
 
 bool MainWindow::eventFilter(QObject *object, QEvent *event)

@@ -146,13 +146,18 @@ void NamesGraphicsScene::redraw()
 }
 void NamesGraphicsScene::mousePressEvent(QGraphicsSceneMouseEvent *mouseEvent)
 {
-    // check mouse button
-    Qt::MouseButtons buttons = mouseEvent->buttons();
-    if ( ! buttons.testFlag(Qt::MouseButton::LeftButton))
-        return;
-
     // get point coords
-    QPointF scene_point = mouseEvent->buttonDownScenePos(Qt::MouseButton::LeftButton);
+    Qt::MouseButtons buttons = mouseEvent->buttons();
+    QPointF scene_point = [&]()
+        {
+            if (buttons.testFlag(Qt::MouseButton::LeftButton))
+                return mouseEvent->buttonDownScenePos(Qt::MouseButton::LeftButton);
+            else if (buttons.testFlag(Qt::MouseButton::RightButton))
+                return mouseEvent->buttonDownScenePos(Qt::MouseButton::RightButton);
+            else
+                return QPointF{0.0, 0.0};
+        }();
+
     if (scene_point.x() == 0 && scene_point.y() == 0)
         return;
 

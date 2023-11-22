@@ -39,6 +39,8 @@ private:
     void refresh_workspace_tree();
     void project_changed();
     void add_open_recent(const QString & pathName);
+    void workspaceTreeWidget_menu(const QPoint & pos);
+
 
 private slots:
 
