@@ -238,6 +238,14 @@ bool Task_Base::find_descendent(TaskID id_)
 TaskTemplate & Project::get_task_template(TemplateID id) { return workspace.get_task_template(id); }
 std::map<uint64_t,TaskTemplate> & Project::get_task_templates() { return workspace.get_task_templates(); }
 Workspace & Project::get_workspace() { return workspace; }
+bool Project::remove_task(TaskID id)
+{
+    auto it = tasks.find(id);
+    if (it == tasks.end())
+        return false;
+    tasks.erase(it);
+    return true;
+}
 
 uint64_t Task_SubProject::duration_in_seconds() const
 {

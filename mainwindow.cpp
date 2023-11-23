@@ -298,7 +298,12 @@ void MainWindow::updateTaskFromInput()
     if (row_id == -1)
         return;
 
-    auto task_it = workspace->get_current_project().tasks.find(row_id);
+    if (row_id >= (int) names_scene.rows_info().size())
+        return;
+
+    ganttry::TaskID task_id = names_scene.rows_info()[row_id].task->get_id();
+
+    auto task_it = workspace->get_current_project().tasks.find(task_id);
     if (task_it == workspace->get_current_project().tasks.end())
         return;
 

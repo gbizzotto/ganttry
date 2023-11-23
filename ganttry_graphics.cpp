@@ -33,12 +33,18 @@ void NamesGraphicsScene::contextMenuEvent(QGraphicsSceneContextMenuEvent *event)
         if ( ! proj->contains(this->project))
             projects_actions.emplace_back(action_menu_project->addAction(QString::fromStdString(proj->name)), *proj);
 
-    auto [task_1_id, dummy] = gantt_scene->get_item_id(event->pos().y());
+    int row_id, dummy;
+    std::tie(row_id, dummy) = gantt_scene->get_item_id(event->scenePos().y());
     // en/disable delete task
-    {
-        bool enable_it = (task_1_id != -1 && rows_info()[task_1_id].project_tree_path.size() == 1);
-        action_delete_task->setEnabled(enable_it);
-    }
+    TaskID task_id = [&]() -> TaskID
+        {
+            bool enable_it = (row_id != -1 && rows_info()[row_id].project_tree_path.size() == 1);
+            action_delete_task->setEnabled(enable_it);
+            if (enable_it)
+                return rows_info()[row_id].task->get_id();
+            else
+                return -1;
+        }();
 
     auto action = menu.exec(event->screenPos());
     if (action == action_add_task)
@@ -49,9 +55,10 @@ void NamesGraphicsScene::contextMenuEvent(QGraphicsSceneContextMenuEvent *event)
     }
     else if (action == action_delete_task)
     {
-        //project->remove_task(task_id);
-        //if (gantt_scene->get_selected_row_id() ==
-        //gantt_scene->unselect_row();
+        project->remove_task(task_id);
+        gantt_scene->unselect_row();
+        redraw();
+        gantt_scene->redraw();
     }
     else // something in submenu
     {

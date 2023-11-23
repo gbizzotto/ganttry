@@ -243,6 +243,7 @@ struct Project
     TaskTemplate & get_task_template(TemplateID id);
     std::map<uint64_t, TaskTemplate> & get_task_templates();
     Workspace & get_workspace();
+    bool remove_task(TaskID id);
 };
 
 } // namespace
