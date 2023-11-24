@@ -189,6 +189,8 @@ struct Project
     inline std::uint64_t get_unixtime_start() const { return unixtime_start; }
     inline std::uint64_t get_unixtime_end() const { return unixtime_start + duration_in_seconds(); }
 
+    inline void set_unixtime_start(std::uint64_t s_since_epoch) { unixtime_start = s_since_epoch; }
+
     inline Task_Base * find_task(TaskID id) const
     {
         auto it = tasks.find(id);

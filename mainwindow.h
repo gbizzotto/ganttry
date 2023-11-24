@@ -82,6 +82,8 @@ private slots:
 
     void on_dependencyTableWidget_customContextMenuRequested(const QPoint &pos);
 
+    void on_projectStartDateTimeEdit_dateTimeChanged(const QDateTime &dateTime);
+
 private:
     Ui::MainWindow *ui;
     std::unique_ptr<ganttry::Workspace> workspace;

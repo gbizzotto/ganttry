@@ -800,6 +800,8 @@ void MainWindow::project_changed()
 
     displaying = true;
     ui->zoomSlider->setValue(workspace->get_current_project().zoom);
+    QDateTime date_time = QDateTime::fromSecsSinceEpoch (workspace->get_current_project().get_unixtime_start());
+    ui->projectStartDateTimeEdit->setDateTime(date_time);
     displaying = false;
 }
 
@@ -929,7 +931,25 @@ void MainWindow::on_dependencyTableWidget_customContextMenuRequested(const QPoin
 
         ui->dependencyTableWidget->removeRow(item->row());
 
+        dates_scene.redraw();
+        names_scene.redraw();
         gantt_scene.redraw();
     }
+}
+
+
+void MainWindow::on_projectStartDateTimeEdit_dateTimeChanged(const QDateTime &dateTime)
+{
+    if (displaying)
+        return;
+    auto s = dateTime.toSecsSinceEpoch();
+    workspace->get_current_project().set_unixtime_start(s);
+    workspace->get_current_project().recalculate_start_offsets();
+
+    dates_scene.redraw();
+    names_scene.redraw();
+    gantt_scene.redraw();
+
+    on_taskSelectionChanged_triggered(gantt_scene.get_selected_row_id(), gantt_scene.get_selected_row_id());
 }
 
