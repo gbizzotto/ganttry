@@ -3,6 +3,7 @@
 #include "edittemplates.h"
 
 #include <string>
+#include <tuple>
 
 #include <QSqlDatabase>
 #include <QSqlQuery>
@@ -40,10 +41,6 @@ MainWindow::MainWindow(QWidget *parent)
     ui->unitsForecastLineEdit->setValidator(dv);
     ui->unitsDoneLineEdit->setValidator(dv);
 
-    //ui->workspaceTreeView->setMaximumWidth (ui->names_view->geometry().width());
-    //ui->workspaceTreeView->setMaximumHeight(ui->verticalLayout_2->geometry().height());
-    //ui->workspaceTreeView->setGeometry(0, 0, ui->names_view->geometry().width(), ui->verticalLayout_2->geometry().height());
-
     QObject::connect(ui->gantt_view->verticalScrollBar(), SIGNAL(valueChanged(int)), ui->names_view->verticalScrollBar(), SLOT(setValue(int)));
     QObject::connect(ui->names_view->verticalScrollBar(), SIGNAL(valueChanged(int)), ui->gantt_view->verticalScrollBar(), SLOT(setValue(int)));
 
@@ -54,6 +51,8 @@ MainWindow::MainWindow(QWidget *parent)
     QObject::connect(&gantt_scene, SIGNAL(newDependency()), this, SLOT(on_newDependency_triggered()));
     QObject::connect(&names_scene, SIGNAL(newRow()), this, SLOT(on_newRow_triggered()));
 
+    QObject::connect(ui->dependencyTableWidget, SIGNAL(currentCellChanged(int,int,int,int)), this, SLOT(on_highlighted_dependency_changed(int,int,int,int)));
+
     ui->dates_view->installEventFilter(this);
     ui->names_view->installEventFilter(this);
     ui->dragHWidget->installEventFilter(this);
@@ -61,16 +60,11 @@ MainWindow::MainWindow(QWidget *parent)
 
     QObject::connect(ui->workspaceTreeWidget, &QTreeWidget::customContextMenuRequested, this, &MainWindow::workspaceTreeWidget_menu);
 
-    //ui->workspaceTreeWidget->resize(ui->names_view->geometry().width(), ui->zoomSlider->geometry().height() + ui->dates_view->geometry().height());
-    //while(ui->workspaceTreeWidget->geometry().height() != ui->zoomSlider->geometry().height() + ui->dates_view->geometry().height())
-    //{
-    //    int diff = (ui->workspaceTreeWidget->geometry().height() > (ui->zoomSlider->geometry().height() + ui->dates_view->geometry().height())) ? 1 : -1;
-    //    auto tree_height = ui->workspaceTreeWidget->geometry().height();
-    //    auto other_height = ui->zoomSlider->geometry().height() + ui->dates_view->geometry().height();
-    //    ui->dates_view->resize(ui->dates_view->geometry().width(), ui->dates_view->geometry().height() + diff);
-    //    //ui->workspaceTreeWidget->setMinimumHeight(ui->zoomSlider->height() + ui->dates_view->height());
-    //}
-    //ui->workspaceTreeWidget->setMinimumWidth(ui->names_view->width());
+    ui->dependencyTableWidget->setColumnCount(3);
+    ui->dependencyTableWidget->setHorizontalHeaderLabels(QStringList() << "Type" << "Task" << "Delay");
+    ui->dependencyTableWidget->setColumnWidth(0, 80);
+    ui->dependencyTableWidget->setColumnWidth(1, 120);
+    ui->dependencyTableWidget->setColumnWidth(2, 10);
 
     refresh_workspace_tree();
     populate_template_combobox();
@@ -248,6 +242,8 @@ void MainWindow::on_taskSelectionChanged_triggered(int old_row_id, int new_row_i
         ui->unitsForecastLineEdit->setText("");
         ui->unitsDoneLineEdit->setText("");
         ui->progressBar->setValue(0);
+        ui->dependencyTableWidget->clearContents();
+        ui->dependencyTableWidget->setRowCount(0);
     };
 
     if (new_row_id == -1)
@@ -259,10 +255,8 @@ void MainWindow::on_taskSelectionChanged_triggered(int old_row_id, int new_row_i
         const ganttry::row_info & info = names_scene.rows_info()[new_row_id];
         ui->taskInfoWidget->setEnabled(info.project_tree_path.size() == 1);
         if (info.project_tree_path.size() > 1)
-        {
-            clear();
-        }
-        else
+            ui->taskInfoWidget->setEnabled(false);
+
         {
             ganttry::Task_Base * task = info.task;
             ui->beginLabel->setText(QDateTime::fromSecsSinceEpoch(info.unixime_start).toString("yyyy-MM-dd HH:mm"));
@@ -280,6 +274,39 @@ void MainWindow::on_taskSelectionChanged_triggered(int old_row_id, int new_row_i
             {
                 int idx = ui->tempateComboBox->findData(QVariant::fromValue(dynamic_cast<ganttry::Task_Templated*>(task)->get_template_id()));
                 ui->tempateComboBox->setCurrentIndex(idx);
+            }
+
+            // dependencies
+            ui->dependencyTableWidget->clearContents();
+            ui->dependencyTableWidget->setRowCount(0);
+            for (const ganttry::Dependency & dependency : info.task->get_parent_tasks())
+            {
+                const ganttry::Task_Base * parent_task = info.task->get_project().find_task(dependency.task_id);
+                if (parent_task == nullptr)
+                    continue;
+                int idx = ui->dependencyTableWidget->rowCount();
+                ui->dependencyTableWidget->insertRow(idx);
+                auto dep_name = [&]()
+                    {
+                        switch (dependency.type)
+                        {
+                            case ganttry::DependencyType::BeginAfter: return "Begin after";
+                            case ganttry::DependencyType::BeginWith : return "Begin with" ;
+                            case ganttry::DependencyType::EndBefore : return "End before" ;
+                            case ganttry::DependencyType::EndWith   : return "End with"   ;
+                        }
+                        return "";
+                    }();
+                ui->dependencyTableWidget->setItem(idx, 0, new QTableWidgetItem(dep_name));
+                ui->dependencyTableWidget->setItem(idx, 1, new QTableWidgetItem(QString::fromStdString(parent_task->get_full_display_name())));
+                ui->dependencyTableWidget->setItem(idx, 2, new QTableWidgetItem("0"));
+
+                ui->dependencyTableWidget->item(idx, 0)->setFlags(ui->dependencyTableWidget->item(idx, 0)->flags() & (~Qt::ItemIsEditable));
+                ui->dependencyTableWidget->item(idx, 1)->setFlags(ui->dependencyTableWidget->item(idx, 0)->flags() & (~Qt::ItemIsEditable));
+
+                ui->dependencyTableWidget->item(idx, 0)->setData(Qt::ItemDataRole::UserRole, QVariant::fromValue(parent_task->get_id()));
+                ui->dependencyTableWidget->item(idx, 1)->setData(Qt::ItemDataRole::UserRole, QVariant::fromValue(task->get_id()));
+                ui->dependencyTableWidget->item(idx, 2)->setData(Qt::ItemDataRole::UserRole, QVariant::fromValue((int)dependency.type));
             }
         }
     }
@@ -394,6 +421,9 @@ void MainWindow::on_newDependency_triggered()
     dates_scene.redraw();
     names_scene.redraw();
     gantt_scene.redraw();
+
+    // refill dependency table, too
+    on_taskSelectionChanged_triggered(gantt_scene.get_selected_row_id(), gantt_scene.get_selected_row_id());
 }
 
 void MainWindow::save_workspace()
@@ -709,6 +739,7 @@ void MainWindow::load_project(ganttry::Project & project, QString filename)
         if (from == project.tasks.end() || to == project.tasks.end())
             continue;
         from->second->add_child_task(type, *to->second);
+        to->second->add_parent_task(type, *from->second);
     }
 
     project.changed = false;
@@ -850,3 +881,55 @@ void MainWindow::add_open_recent(const QString & pathName)
     }
     settings.endArray();
 }
+
+void MainWindow::on_highlighted_dependency_changed(int row, int col, int prev_row, int prev_col)
+{
+    ganttry::DependencyHighlight highlight{0,0,nullptr};
+
+    if (row != -1)
+    {
+        ganttry::TaskID parent_task_id = ui->dependencyTableWidget->item(row, 0)->data(Qt::ItemDataRole::UserRole).toULongLong();
+        ganttry::TaskID child_task_id = ui->dependencyTableWidget->item(row, 1)->data(Qt::ItemDataRole::UserRole).toULongLong();
+        if (gantt_scene.get_selected_row_id() >= 0 || gantt_scene.get_selected_row_id() < (int)names_scene.rows_info().size())
+        {
+            ganttry::Project * proj = std::get<1>(names_scene.rows_info()[gantt_scene.get_selected_row_id()].project_tree_path.back());
+            highlight = {parent_task_id, child_task_id, proj};
+        }
+    }
+
+    if (gantt_scene.set_highlighted_dependency(highlight))
+        gantt_scene.redraw();
+}
+
+void MainWindow::on_dependencyTableWidget_customContextMenuRequested(const QPoint &pos)
+{
+    QMenu menu;
+    auto action_delete = menu.addAction("Delete");
+    auto action = menu.exec(ui->dependencyTableWidget->mapToGlobal(pos));
+    if (action == action_delete)
+    {
+        // find the tasks
+        QTableWidgetItem * item = ui->dependencyTableWidget->itemAt(pos);
+        if (item == nullptr)
+            return;
+        ganttry::TaskID parent_task_id = (ganttry::TaskID  )(const ganttry::Dependency *) ui->dependencyTableWidget->item(item->row(), 0)->data(Qt::ItemDataRole::UserRole).toULongLong();
+        ganttry::TaskID  child_task_id = (ganttry::TaskID  )(const ganttry::Dependency *) ui->dependencyTableWidget->item(item->row(), 1)->data(Qt::ItemDataRole::UserRole).toULongLong();
+        ganttry::Project * project     = (ganttry::Project*)(const ganttry::Dependency *) ui->dependencyTableWidget->item(item->row(), 2)->data(Qt::ItemDataRole::UserRole).toULongLong();
+
+        ganttry::Task_Base * parent_task = this->workspace->get_current_project().find_task(parent_task_id);
+        if (parent_task == nullptr)
+            return;
+        ganttry::Task_Base * child_task = this->workspace->get_current_project().find_task(child_task_id);
+        if (child_task == nullptr)
+            return;
+
+        parent_task->remove_child_task(child_task_id);
+        child_task->remove_parent_task(parent_task_id);
+        child_task->recalculate_start_offset();
+
+        ui->dependencyTableWidget->removeRow(item->row());
+
+        gantt_scene.redraw();
+    }
+}
+

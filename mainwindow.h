@@ -78,6 +78,10 @@ private slots:
 
     void on_zoomSlider_valueChanged(int value);
 
+    void on_highlighted_dependency_changed(int row, int col, int prev_row, int prev_col);
+
+    void on_dependencyTableWidget_customContextMenuRequested(const QPoint &pos);
+
 private:
     Ui::MainWindow *ui;
     std::unique_ptr<ganttry::Workspace> workspace;

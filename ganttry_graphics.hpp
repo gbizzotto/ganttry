@@ -25,6 +25,21 @@ struct row_info
     std::uint64_t unixime_end;
 };
 
+struct DependencyHighlight
+{
+    TaskID parent_task_id;
+    TaskID child_task_id;
+    Project * proj;
+};
+inline bool operator!=(const DependencyHighlight & left, const DependencyHighlight & right)
+{
+    return false
+        || left.parent_task_id != right.parent_task_id
+        || left.child_task_id  != right.child_task_id
+        || left.proj           != right.proj
+        ;
+}
+
 class DatesGraphicsScene : public QGraphicsScene
 {
     Project * project;
@@ -87,6 +102,8 @@ class GanttGraphicsScene : public QGraphicsScene
     QGraphicsRectItem * highlighted_from = nullptr;
     QGraphicsRectItem * highlighted_to  = nullptr;
 
+    DependencyHighlight highlighted_dependency;
+
 public:
     inline GanttGraphicsScene(Project & p, NamesGraphicsScene & names_, DatesGraphicsScene & dates_)
         : project(&p)
@@ -94,6 +111,13 @@ public:
         , dates_scene(dates_)
     {
         names_scene.set_gantt_scene(this);
+    }
+
+    inline bool set_highlighted_dependency(decltype(highlighted_dependency) d)
+    {
+        bool result = highlighted_dependency != d;
+        highlighted_dependency = d;
+        return result;
     }
 
     void redraw();

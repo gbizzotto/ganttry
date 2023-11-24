@@ -94,6 +94,9 @@ public:
     inline uint64_t unixtime_end_offset() const { return unixtime_start_offset + duration_in_seconds(); }
     virtual uint64_t duration_in_seconds() const;
     bool add_child_task(DependencyType d, Task_Base & t);
+    bool add_parent_task(DependencyType d, Task_Base & t);
+    bool remove_parent_task(TaskID task_id);
+    bool remove_child_task (TaskID task_id);
     void recalculate_start_offset();
     void children_recalculate_start_offset();
     bool find_descendent(TaskID id);
@@ -185,6 +188,15 @@ struct Project
 
     inline std::uint64_t get_unixtime_start() const { return unixtime_start; }
     inline std::uint64_t get_unixtime_end() const { return unixtime_start + duration_in_seconds(); }
+
+    inline Task_Base * find_task(TaskID id) const
+    {
+        auto it = tasks.find(id);
+        if (it == tasks.end())
+            return nullptr;
+        else
+            return &*it->second;
+    }
 
     inline TaskID add_task(int template_id, std::string name, float unit_count_forecast, float units_done_count)
     {

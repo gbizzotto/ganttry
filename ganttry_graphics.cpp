@@ -144,10 +144,10 @@ void NamesGraphicsScene::redraw()
         int total_height = std::accumulate(rows_info_.begin(), rows_info_.begin()+gantt_scene->get_selected_row_id(), 0, [](int v, const row_info & left){ return v+left.height; });
 
         // update selection
-        if (selection_rect) {
-            this->removeItem(selection_rect);
-            selection_rect = nullptr;
-        }
+        //if (selection_rect) {
+        //    this->removeItem(selection_rect);
+        //    selection_rect = nullptr;
+        //}
         selection_rect = this->addRect(0, total_height, width, rows_info_[gantt_scene->get_selected_row_id()].height, QPen(QColor(0,0,0,55)),QBrush(QColor(0,0,0,55)));
     }
 }
@@ -351,8 +351,10 @@ void GanttGraphicsScene::redraw()
 
     // dependency arrows
     int i=0;
-    QPen pen(QColor(255,0,0,128));
-    pen.setWidth(2);
+    QPen normal_pen(QColor(255,0,0,128));
+    normal_pen.setWidth(2);
+    QPen highlight_pen(QColor(100,237,149,255));
+    highlight_pen.setWidth(3);
     std::function<void(std::vector<std::tuple<TaskID,Project*>>)> draw_arrows;
     draw_arrows = [&](std::vector<std::tuple<TaskID,Project*>> project_tree_path)
         {
@@ -369,6 +371,13 @@ void GanttGraphicsScene::redraw()
                     if (it == names_scene.rows_info().end())
                         continue;
                     auto task_idx = std::distance(names_scene.rows_info().begin(), it);
+
+                    QPen & pen = [&]() ->QPen& {
+                            return (proj == highlighted_dependency.proj
+                                && p.first == highlighted_dependency.parent_task_id
+                                && dependency.task_id == highlighted_dependency.child_task_id
+                                ) ? highlight_pen : normal_pen;
+                        }();
 
                     QGraphicsPathItem * arrow = nullptr;
                     if (dependency.type == ganttry::DependencyType::BeginAfter)
@@ -396,6 +405,20 @@ void GanttGraphicsScene::redraw()
             }
         };
     draw_arrows({{0,project}});
+
+
+    // selection
+    if (selected_row_id != -1)
+    {
+        int total_height = std::accumulate(names_scene.rows_info().begin(), names_scene.rows_info().begin()+selected_row_id, 0, [](int v, const row_info & left){ return v+left.height; });
+
+        // update selection
+        //if (selection_rect) {
+        //    this->removeItem(selection_rect);
+        //    selection_rect = nullptr;
+        //}
+        selection_rect = this->addRect(0, total_height, width, names_scene.rows_info()[selected_row_id].height, QPen(QColor(0,0,0,55)),QBrush(QColor(0,0,0,55)));
+    }
 }
 
 void GanttGraphicsScene::mousePressEvent(QGraphicsSceneMouseEvent *mouseEvent)
@@ -472,7 +495,7 @@ void GanttGraphicsScene::mouseReleaseEvent(QGraphicsSceneMouseEvent *mouseEvent)
     std::tie(task_down_id,dummy) = get_item_id(down_pos.y());
     std::tie(task_up_id,dummy) = get_item_id(up_pos.y());
     // check both tasks are valid
-    if (task_down_id == -1 | task_up_id == -1)
+    if ((task_down_id == -1) | (task_up_id == -1))
         return;
     // check we're not pointing from and to the same object
     if (task_down_id == task_up_id)
@@ -511,7 +534,7 @@ void GanttGraphicsScene::mouseReleaseEvent(QGraphicsSceneMouseEvent *mouseEvent)
             return {false,DependencyType::BeginAfter};
         }();
 
-    if (got_action && task_down.add_child_task(dep, task_up))
+    if (got_action && task_down.add_child_task(dep, task_up) && task_up.add_parent_task(dep, task_down))
     {
         project->changed = true;
         emit newDependency();
@@ -730,9 +753,10 @@ void GanttGraphicsScene::updateSelection(int row_id, int total_height)
     }
 
     names_scene.update_selected_row(row_id, total_height);
-    if (selected_row_id != (int)row_id)
-        emit selectionChanged(selected_row_id, (int)row_id);
+    bool selection_changed = selected_row_id != (int)row_id;
     selected_row_id = row_id;
+    if (selection_changed)
+        emit selectionChanged(selected_row_id, (int)row_id);
 }
 
 void GanttGraphicsScene::unselect_row()

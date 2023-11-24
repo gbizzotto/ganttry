@@ -42,11 +42,16 @@ std::string Task_Templated::to_json(TaskID tid) const
 }
 std::string Task_Templated::get_full_display_name() const
 {
-    const std::string & task_template = get_project().workspace.get_task_template(template_id).name;
     auto task_name = get_name();
-    if (task_name != "")
-        task_name = " < " + task_name;
-    return task_template + task_name;
+    if ( ! task_name.empty())
+        return task_name;
+    else
+        return get_project().workspace.get_task_template(template_id).name;
+    //const std::string & task_template = get_project().workspace.get_task_template(template_id).name;
+    //auto task_name = get_name();
+    //if (task_name != "")
+    //    task_name = " < " + task_name;
+    //return task_template + task_name;
 }
 
 float Task_SubProject::duration_in_days() const
@@ -72,7 +77,13 @@ std::string Task_SubProject::to_json(TaskID tid) const
 }
 std::string Task_SubProject::get_full_display_name() const
 {
-    return get_name() + ((get_name().size())?" < ":"") + child.name + " < " + get_project().name;
+    auto name = get_name();
+    if ( ! name.empty())
+        return name;
+    else
+        return child.name;
+
+    //return get_name() + ((get_name().size())?" < ":"") + child.name + " < " + get_project().name;
 }
 
 
@@ -142,12 +153,11 @@ void Task_Base::children_recalculate_start_offset()
 
 bool Task_Base::add_child_task(DependencyType d, Task_Base & child)
 {
-    Task_Base & parent = *this;
     bool changed = false;
 
     // in parent
-    auto it_children = std::find_if(parent.children_tasks.begin(), parent.children_tasks.end(), [&](const Dependency & d){ return d.task_id == child.id; });
-    if (it_children == parent.children_tasks.end())
+    auto it_children = std::find_if(children_tasks.begin(), children_tasks.end(), [&](const Dependency & d){ return d.task_id == child.id; });
+    if (it_children == children_tasks.end())
     {
         changed = true;
         children_tasks.push_back({d, child.id});
@@ -158,21 +168,56 @@ bool Task_Base::add_child_task(DependencyType d, Task_Base & child)
         it_children->type = d;
     }
 
+    return changed;
+}
+bool Task_Base::add_parent_task(DependencyType d, Task_Base & parent)
+{
+    bool changed = false;
+
     // in child
-    auto it_parents = std::find_if(child.parent_tasks.begin(), child.parent_tasks.end(), [&](const Dependency & d){ return d.task_id == id; });
-    if (it_parents == child.parent_tasks.end())
+    auto it_parents = std::find_if(parent_tasks.begin(), parent_tasks.end(), [&](const Dependency & d){ return d.task_id == id; });
+    if (it_parents == parent_tasks.end())
     {
         changed = true;
-        child.parent_tasks.push_back({d, parent.id});
-        child.recalculate_start_offset();
+        parent_tasks.push_back({d, parent.id});
     }
     else if (it_parents->type != d)
     {
-        changed = true;
+        changed = it_parents->type != d;
         it_parents->type = d;
     }
 
+    if (changed)
+        recalculate_start_offset();
     return changed;
+}
+bool Task_Base::remove_parent_task(TaskID task_id)
+{
+    for (auto it=this->parent_tasks.begin(), end=this->parent_tasks.end() ; it!=end ; ++it)
+    {
+        auto d = *it;
+        if (d.task_id == task_id)
+        {
+            this->parent_tasks.erase(it);
+            this->project.changed = true;
+            return true;
+        }
+    }
+    return false;
+}
+bool Task_Base::remove_child_task(TaskID task_id)
+{
+    for (auto it=this->children_tasks.begin(), end=this->children_tasks.end() ; it!=end ; ++it)
+    {
+        auto d = *it;
+        if (d.task_id == task_id)
+        {
+            this->children_tasks.erase(it);
+            this->project.changed = true;
+            return true;
+        }
+    }
+    return false;
 }
 
 uint64_t Task_Base::duration_in_seconds() const

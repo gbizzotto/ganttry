@@ -113,13 +113,13 @@ void EditTemplates::updateTemplate(QListWidgetItem * item)
     auto & task_template = workspace.get_task_template(id);
 
     bool template_changed = false
-        | task_template.name                           != ui->nameLineEdit       ->       text().toStdString()
-        | task_template.description                    != ui->descriptionTextEdit->toPlainText().toStdString()
-        | task_template.units                          != ui->unitComboBox       ->currentText().toStdString()
-        | task_template.default_UDM                    != ui->UMDLineEdit        ->       text().toFloat    ()
-        | task_template.default_material_cost_per_unit != ui->materialLineEdit   ->       text().toFloat    ()
-        | task_template.default_manpower_cost_per_unit != ui->manpowerLineEdit   ->       text().toFloat    ()
-        | task_template.use_avg                        != ui->avgCheckBox        -> checkState()
+        | (task_template.name                           != ui->nameLineEdit       ->       text().toStdString())
+        | (task_template.description                    != ui->descriptionTextEdit->toPlainText().toStdString())
+        | (task_template.units                          != ui->unitComboBox       ->currentText().toStdString())
+        | (task_template.default_UDM                    != ui->UMDLineEdit        ->       text().toFloat    ())
+        | (task_template.default_material_cost_per_unit != ui->materialLineEdit   ->       text().toFloat    ())
+        | (task_template.default_manpower_cost_per_unit != ui->manpowerLineEdit   ->       text().toFloat    ())
+        | (task_template.use_avg                        != ui->avgCheckBox        -> checkState()              )
         ;
     workspace.set_changed(workspace.get_changed() | template_changed);
 
