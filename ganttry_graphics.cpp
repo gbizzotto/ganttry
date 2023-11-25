@@ -96,6 +96,12 @@ void NamesGraphicsScene::redraw()
     int width = this->views()[0]->viewport()->width() - 1;
     qreal total_height(0);
 
+    // project start datetime
+    QGraphicsTextItem * start_item = this->addText(QString::fromStdString("Start" + project->name));
+    start_item->setPos(0, 0);
+    rows_info_.push_back(row_info{(int)start_item->boundingRect().height(), 0, {{0,project}}, nullptr, project->get_unixtime_start(), project->get_unixtime_end()});
+    total_height += start_item->boundingRect().height();
+
     // text
     std::function<void(ganttry::Project &, int, std::vector<std::tuple<TaskID,Project*>>, uint64_t)> redraw_project;
     redraw_project = [&](ganttry::Project & project, int depth, std::vector<std::tuple<TaskID,Project*>> project_tree_path, std::uint64_t base_start_time)
@@ -285,6 +291,16 @@ void GanttGraphicsScene::redraw_vlines()
 {
     redraw();
 }
+void GanttGraphicsScene::rotate_45(QGraphicsRectItem * item)
+{
+    QPointF offset = item->sceneBoundingRect().center();
+    QTransform transform;
+    transform.translate(offset.x(),offset.y());
+    transform.rotate(45);
+    transform.translate(-offset.x(),-offset.y());
+    item->setTransform(transform);
+    this->update();
+}
 void GanttGraphicsScene::redraw()
 {
     clear();
@@ -340,6 +356,16 @@ void GanttGraphicsScene::redraw()
     {
         auto [bar_pixel_begin, bar_pixel_end] = get_bar_pixel_coords(info);
 
+        // project starting point
+        if (info.task == nullptr)
+        {
+            QGraphicsRectItem * item = this->addRect(bar_pixel_begin-4, total_height+info.height/2 - 4, 8, 8, QPen(QColor(0,0,0,255)), QBrush(QColor(0,0,0,255)));
+            rotate_45(item);
+            total_height += info.height;
+            bars_coords.push_back({total_height+info.height/2, bar_pixel_begin, bar_pixel_end});
+            continue;
+        }
+
         [[maybe_unused]] QGraphicsRectItem * item;
         if (info.task->is_recursive())
             item = this->addRect(bar_pixel_begin, total_height+info.height/2-2, bar_pixel_end-bar_pixel_begin, 4, QPen(QColor(0,0,0,0)), QBrush(QColor(0,0,0,255)));
@@ -350,7 +376,7 @@ void GanttGraphicsScene::redraw()
     }
 
     // dependency arrows
-    int i=0;
+    int i=1;
     QPen normal_pen(QColor(255,0,0,128));
     normal_pen.setWidth(2);
     QPen highlight_pen(QColor(100,237,149,255));
@@ -366,7 +392,7 @@ void GanttGraphicsScene::redraw()
                 {
                     auto it = std::find_if(names_scene.rows_info().begin(), names_scene.rows_info().end(), [&dependency,&project_tree_path](const row_info & ri)
                         {
-                            return project_tree_path == ri.project_tree_path  &&  dependency.task_id == ri.task->get_id();
+                            return project_tree_path == ri.project_tree_path  &&  ri.task != nullptr  &&  dependency.task_id == ri.task->get_id();
                         });
                     if (it == names_scene.rows_info().end())
                         continue;

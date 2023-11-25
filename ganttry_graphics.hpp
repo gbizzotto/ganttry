@@ -138,6 +138,7 @@ public:
     virtual void mouseMoveEvent(QGraphicsSceneMouseEvent *mouseEvent) override;
 
     inline void set_project(Project * p) { project = p; }
+    void rotate_45(QGraphicsRectItem * item);
 
 signals:
     void selectionChanged(int old_row_id, int new_row_id);
