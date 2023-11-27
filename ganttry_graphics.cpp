@@ -593,7 +593,6 @@ void GanttGraphicsScene::mouseReleaseEvent(QGraphicsSceneMouseEvent *mouseEvent)
     if (got_action && task_down.add_child_task(dep, task_up) && task_up.add_parent_task(dep, task_down))
     {
         project->changed = true;
-        //project->recalculate_start_offsets();
         emit newDependency();
     }
 }

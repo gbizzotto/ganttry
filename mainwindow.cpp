@@ -613,6 +613,7 @@ void MainWindow::on_workspaceActionNew_triggered()
     }
     workspace = std::make_unique<ganttry::Workspace>();
     refresh_workspace_tree();
+    populate_template_combobox();
 
     dates_scene.set_project(&workspace->get_current_project());
     names_scene.set_project(&workspace->get_current_project());
