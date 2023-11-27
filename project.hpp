@@ -15,6 +15,8 @@
 namespace ganttry
 {
 
+using nixtime = std::uint64_t; // seconds since epoch
+
 enum DependencyType {
     BeginAfter,
     BeginWith,
@@ -77,7 +79,7 @@ public:
     inline auto & get_description          () const { return description          ; }
     inline auto & get_unit_count_forecast  () const { return unit_count_forecast  ; }
     inline auto & get_units_done_count     () const { return units_done_count     ; }
-    inline auto & get_unixtime_start_offset() const { return unixtime_start_offset; }
+    virtual inline nixtime get_unixtime_start_offset() const { return unixtime_start_offset; }
     inline auto & get_parent_tasks         () const { return parent_tasks         ; }
     inline auto & get_children_tasks       () const { return children_tasks       ; }
 
@@ -87,11 +89,11 @@ public:
 
     void set_unit_count_forecast(float forecast);
     void set_units_done_count(float done);
-    void set_unixtime_start_offset(std::uint64_t v);
+    virtual void set_unixtime_start_offset(std::uint64_t v);
 
     //std::uint64_t unixtime_start() const;
 
-    inline uint64_t unixtime_end_offset() const { return unixtime_start_offset + duration_in_seconds(); }
+    virtual inline uint64_t unixtime_end_offset() const { return unixtime_start_offset + duration_in_seconds(); }
     virtual uint64_t duration_in_seconds() const;
     bool add_child_task(DependencyType d, Task_Base & t);
     bool add_parent_task(DependencyType d, Task_Base & t);
@@ -103,12 +105,41 @@ public:
 
     inline virtual int get_template_id() const { return -1; }
     inline virtual bool is_recursive() const { return false; }
+    inline virtual bool is_relative() const { return true; }
     inline virtual Project * get_child() { return nullptr; }
     virtual void set_template_id(int) {}; // do nothing
     virtual float duration_in_days() const = 0;
     virtual bool contains(const Project * const proj) const = 0;
     virtual std::string to_json(TaskID tid) const = 0;
     virtual std::string get_full_display_name() const = 0;
+};
+
+class Task_TimePoint : public Task_Base
+{
+    nixtime time_point;
+
+public:
+    inline Task_TimePoint( Project & project
+                  , TaskID id
+                  , std::string name
+                  , std::string description
+                  , std::uint64_t time
+                  )
+        : Task_Base(project, id, name, description, 0, 0)
+        , time_point(time)
+    {}
+
+    inline nixtime get_time_point() { return time_point; }
+    void set_time_point(nixtime t);
+
+    virtual inline float duration_in_days() const override { return 0; }
+    virtual inline bool contains(const Project * const ) const override { return false; }
+    virtual std::string to_json(TaskID tid) const override;
+    virtual inline std::string get_full_display_name() const override { return get_name(); }
+
+    virtual nixtime get_unixtime_start_offset() const override;
+    virtual inline uint64_t unixtime_end_offset() const override { return get_unixtime_start_offset(); }
+    inline virtual bool is_relative() const override { return false; }
 };
 
 class Task_Templated : public Task_Base
@@ -178,18 +209,21 @@ struct Project
     Workspace & workspace;
     std::map<TaskID,std::unique_ptr<Task_Base>> tasks;
     int zoom = 2;
-    TaskID next_task_id = 0;
-    std::uint64_t unixtime_start;
+    TaskID next_task_id = 1;
 
-    inline Project(Workspace & w, std::uint64_t unixtime_start_)
+    inline Project(Workspace & w, nixtime unixtime_start)
         : workspace(w)
-        , unixtime_start(unixtime_start_)
-    {}
+    {
+        tasks[0] = std::make_unique<Task_TimePoint>(*this, 0, "Start", "Project beginning", unixtime_start);
+    }
 
-    inline std::uint64_t get_unixtime_start() const { return unixtime_start; }
-    inline std::uint64_t get_unixtime_end() const { return unixtime_start + duration_in_seconds(); }
+    inline nixtime get_unixtime_start() { return ((ganttry::Task_TimePoint*)(this->tasks[0].get()))->get_time_point(); }
+    inline nixtime get_unixtime_end() { return get_unixtime_start() + duration_in_seconds(); }
 
-    inline void set_unixtime_start(std::uint64_t s_since_epoch) { unixtime_start = s_since_epoch; }
+    inline void set_unixtime_start(std::uint64_t s_since_epoch)
+    {
+        ((Task_TimePoint*)tasks[0].get())->set_time_point(s_since_epoch);
+    }
 
     inline Task_Base * find_task(TaskID id) const
     {
@@ -203,6 +237,16 @@ struct Project
     inline TaskID add_task(int template_id, std::string name, float unit_count_forecast, float units_done_count)
     {
         auto [it,b] = tasks.insert({next_task_id , std::make_unique<Task_Templated>(*this, -1, name, "", unit_count_forecast, units_done_count, template_id)});
+        if(!b)
+            return -1;
+        it->second->set_id(it->first);
+        ++next_task_id;
+        changed = true;
+        return it->first;
+    }
+    inline TaskID add_time_point(std::string name)
+    {
+        auto [it,b] = tasks.insert({next_task_id , std::make_unique<Task_TimePoint>(*this, -1, name, "", get_unixtime_end())});
         if(!b)
             return -1;
         it->second->set_id(it->first);
@@ -237,7 +281,7 @@ struct Project
 
     inline void add_task(std::unique_ptr<Task_Base> && t)
     {
-        tasks.insert({t->get_id(), std::move(t)});
+        tasks[t->get_id()] = std::move(t);
     }
 
     inline void recalculate_start_offsets()

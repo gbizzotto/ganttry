@@ -82,7 +82,7 @@ private slots:
 
     void on_dependencyTableWidget_customContextMenuRequested(const QPoint &pos);
 
-    void on_projectStartDateTimeEdit_dateTimeChanged(const QDateTime &dateTime);
+    void on_timepointDateTimeEdit_dateTimeChanged(const QDateTime &dateTime);
 
 private:
     Ui::MainWindow *ui;

@@ -257,57 +257,86 @@ void MainWindow::on_taskSelectionChanged_triggered(int old_row_id, int new_row_i
         if (info.project_tree_path.size() > 1)
             ui->taskInfoWidget->setEnabled(false);
 
+        ganttry::Task_Base * task = info.task;
+        ui->beginLabel->setText(QDateTime::fromSecsSinceEpoch(info.unixime_start).toString("yyyy-MM-dd HH:mm"));
+        ui->  endLabel->setText(QDateTime::fromSecsSinceEpoch(info.unixime_end  ).toString("yyyy-MM-dd HH:mm"));
+        if (ui->zoomSlider->value() == 2)
+            ui->lastsLabel->setText(QString::fromStdString(std::to_string((task->duration_in_seconds()) / 86400.0)) + " days");
+        else if (ui->zoomSlider->value() == 1)
+            ui->lastsLabel->setText(QString::fromStdString(std::to_string((task->duration_in_seconds()) / 3600.0)) + " hours ");
+        ui->          progressBar->       setValue(100.0 * task->get_units_done_count() / task->get_unit_count_forecast());
+        ui->         nameLineEdit->       setText(QString::fromStdString(task->get_name       ()));
+        ui->  descriptionTextEdit->       setText(QString::fromStdString(task->get_description()));
+
+        if ( ! task->is_relative())
         {
-            ganttry::Task_Base * task = info.task;
-            ui->beginLabel->setText(QDateTime::fromSecsSinceEpoch(info.unixime_start).toString("yyyy-MM-dd HH:mm"));
-            ui->  endLabel->setText(QDateTime::fromSecsSinceEpoch(info.unixime_end  ).toString("yyyy-MM-dd HH:mm"));
-            if (ui->zoomSlider->value() == 2)
-                ui->lastsLabel->setText(QString::fromStdString(std::to_string((task->duration_in_seconds()) / 86400.0)) + " days");
-            else if (ui->zoomSlider->value() == 1)
-                ui->lastsLabel->setText(QString::fromStdString(std::to_string((task->duration_in_seconds()) / 3600.0)) + " hours ");
-            ui->         nameLineEdit->       setText(QString::fromStdString(task->get_name       ()));
-            ui->  descriptionTextEdit->       setText(QString::fromStdString(task->get_description()));
-            ui->unitsForecastLineEdit->       setText(QString::fromStdString(std::to_string(task->get_unit_count_forecast())));
-            ui->    unitsDoneLineEdit->       setText(QString::fromStdString(std::to_string(task->get_units_done_count   ())));
-            ui->          progressBar->       setValue(100.0 * task->get_units_done_count() / task->get_unit_count_forecast());
-            if (dynamic_cast<ganttry::Task_Templated*>(task) != nullptr)
-            {
-                int idx = ui->tempateComboBox->findData(QVariant::fromValue(dynamic_cast<ganttry::Task_Templated*>(task)->get_template_id()));
-                ui->tempateComboBox->setCurrentIndex(idx);
-            }
+            // it's a time point
+            ui->unitsForecastLineEdit->setText("");
+            ui->    unitsDoneLineEdit->setText("");
+            ui->timepointDateTimeEdit->setDateTime(QDateTime::fromSecsSinceEpoch(dynamic_cast<ganttry::Task_TimePoint*>(task)->get_time_point()));
 
-            // dependencies
-            ui->dependencyTableWidget->clearContents();
-            ui->dependencyTableWidget->setRowCount(0);
-            for (const ganttry::Dependency & dependency : info.task->get_parent_tasks())
-            {
-                const ganttry::Task_Base * parent_task = info.task->get_project().find_task(dependency.task_id);
-                if (parent_task == nullptr)
-                    continue;
-                int idx = ui->dependencyTableWidget->rowCount();
-                ui->dependencyTableWidget->insertRow(idx);
-                auto dep_name = [&]()
+            ui->projectWidget->setVisible(true);
+            ui->label_43->setVisible(false);
+            ui->unitsLabel->setVisible(false);
+            ui->label_48->setVisible(false);
+            ui->unitsDoneLineEdit->setVisible(false);
+        }
+        else
+        {
+            // it's a templated or project
+            ui->unitsForecastLineEdit->setText(QString::fromStdString(std::to_string(task->get_unit_count_forecast())));
+            ui->    unitsDoneLineEdit->setText(QString::fromStdString(std::to_string(task->get_units_done_count   ())));
+
+            ui->projectWidget->setVisible(false);
+            ui->label_43->setVisible         (true);
+            ui->unitsLabel->setVisible       (true);
+            ui->label_48->setVisible         (true);
+            ui->unitsDoneLineEdit->setVisible(true);
+        }
+        if (task->is_relative() && ! task->is_recursive())
+        {
+            // it's a templated task
+            int idx = ui->tempateComboBox->findData(QVariant::fromValue(dynamic_cast<ganttry::Task_Templated*>(task)->get_template_id()));
+            ui->tempateComboBox->setCurrentIndex(idx);
+
+            ui->tempateComboBox->setVisible(true);
+        }
+        else
+        {
+            ui->tempateComboBox->setVisible(false);
+        }
+
+        // dependencies
+        ui->dependencyTableWidget->clearContents();
+        ui->dependencyTableWidget->setRowCount(0);
+        for (const ganttry::Dependency & dependency : info.task->get_parent_tasks())
+        {
+            const ganttry::Task_Base * parent_task = info.task->get_project().find_task(dependency.task_id);
+            if (parent_task == nullptr)
+                continue;
+            int idx = ui->dependencyTableWidget->rowCount();
+            ui->dependencyTableWidget->insertRow(idx);
+            auto dep_name = [&]()
+                {
+                    switch (dependency.type)
                     {
-                        switch (dependency.type)
-                        {
-                            case ganttry::DependencyType::BeginAfter: return "Begin after";
-                            case ganttry::DependencyType::BeginWith : return "Begin with" ;
-                            case ganttry::DependencyType::EndBefore : return "End before" ;
-                            case ganttry::DependencyType::EndWith   : return "End with"   ;
-                        }
-                        return "";
-                    }();
-                ui->dependencyTableWidget->setItem(idx, 0, new QTableWidgetItem(dep_name));
-                ui->dependencyTableWidget->setItem(idx, 1, new QTableWidgetItem(QString::fromStdString(parent_task->get_full_display_name())));
-                ui->dependencyTableWidget->setItem(idx, 2, new QTableWidgetItem("0"));
+                        case ganttry::DependencyType::BeginAfter: return "Begin after";
+                        case ganttry::DependencyType::BeginWith : return "Begin with" ;
+                        case ganttry::DependencyType::EndBefore : return "End before" ;
+                        case ganttry::DependencyType::EndWith   : return "End with"   ;
+                    }
+                    return "";
+                }();
+            ui->dependencyTableWidget->setItem(idx, 0, new QTableWidgetItem(dep_name));
+            ui->dependencyTableWidget->setItem(idx, 1, new QTableWidgetItem(QString::fromStdString(parent_task->get_full_display_name())));
+            ui->dependencyTableWidget->setItem(idx, 2, new QTableWidgetItem("0"));
 
-                ui->dependencyTableWidget->item(idx, 0)->setFlags(ui->dependencyTableWidget->item(idx, 0)->flags() & (~Qt::ItemIsEditable));
-                ui->dependencyTableWidget->item(idx, 1)->setFlags(ui->dependencyTableWidget->item(idx, 0)->flags() & (~Qt::ItemIsEditable));
+            ui->dependencyTableWidget->item(idx, 0)->setFlags(ui->dependencyTableWidget->item(idx, 0)->flags() & (~Qt::ItemIsEditable));
+            ui->dependencyTableWidget->item(idx, 1)->setFlags(ui->dependencyTableWidget->item(idx, 0)->flags() & (~Qt::ItemIsEditable));
 
-                ui->dependencyTableWidget->item(idx, 0)->setData(Qt::ItemDataRole::UserRole, QVariant::fromValue(parent_task->get_id()));
-                ui->dependencyTableWidget->item(idx, 1)->setData(Qt::ItemDataRole::UserRole, QVariant::fromValue(task->get_id()));
-                ui->dependencyTableWidget->item(idx, 2)->setData(Qt::ItemDataRole::UserRole, QVariant::fromValue((int)dependency.type));
-            }
+            ui->dependencyTableWidget->item(idx, 0)->setData(Qt::ItemDataRole::UserRole, QVariant::fromValue(parent_task->get_id()));
+            ui->dependencyTableWidget->item(idx, 1)->setData(Qt::ItemDataRole::UserRole, QVariant::fromValue(task->get_id()));
+            ui->dependencyTableWidget->item(idx, 2)->setData(Qt::ItemDataRole::UserRole, QVariant::fromValue((int)dependency.type));
         }
     }
 
@@ -336,8 +365,10 @@ void MainWindow::updateTaskFromInput()
 
     ganttry::Task_Base & task = *task_it->second;
 
-    float units_forecast = std::stof(ui->unitsForecastLineEdit->text().toStdString());
-    float units_done     = std::stof(ui->unitsDoneLineEdit    ->text().toStdString());
+    ganttry::nixtime timepoint = [&](){ return task.is_relative() ? 0 : ui->timepointDateTimeEdit->dateTime().toSecsSinceEpoch(); }();
+
+    float units_forecast = [&](){ return (! task.is_relative()) ? 0.0 : std::stof(ui->unitsForecastLineEdit->text().toStdString()); }();
+    float units_done     = [&](){ return (! task.is_relative()) ? 0.0 : std::stof(ui->unitsDoneLineEdit    ->text().toStdString()); }();
 
     if (units_done > units_forecast)
         units_done = units_forecast;
@@ -347,6 +378,7 @@ void MainWindow::updateTaskFromInput()
             || task.get_unit_count_forecast() != units_forecast
             || task.get_units_done_count   () != units_done
             || ((dynamic_cast<ganttry::Task_Templated*>(&task) != nullptr) && (dynamic_cast<ganttry::Task_Templated*>(&task)->get_template_id () != ui->tempateComboBox->currentData()))
+            || (!task.is_relative() && timepoint != dynamic_cast<ganttry::Task_TimePoint*>(&task)->get_time_point())
         ;
 
     bool was_changed = task.get_project().changed;
@@ -356,6 +388,12 @@ void MainWindow::updateTaskFromInput()
     task.set_template_id        (ui->tempateComboBox->currentData().toUInt());
     task.set_unit_count_forecast(units_forecast);
     task.set_units_done_count   (units_done);
+
+    if ( ! task.is_relative())
+    {
+        dynamic_cast<ganttry::Task_TimePoint*>(&task)->set_time_point(timepoint);
+        workspace->get_current_project().recalculate_start_offsets();
+    }
 
     ui->beginLabel->setText(QDateTime::fromSecsSinceEpoch(task.get_unixtime_start_offset()).toString("yyyy-MM-dd HH:mm"));
     ui->  endLabel->setText(QDateTime::fromSecsSinceEpoch(task.unixtime_end_offset()).toString("yyyy-MM-dd HH:mm"));
@@ -520,7 +558,6 @@ void MainWindow::save_project(ganttry::Project & project)
     std::ofstream out(project.filename);
     out << "{" << std::endl;
     out << "    \"name\": \"" << project.name << "\", " << std::endl;
-    out << "    \"unixtime_start\": " << project.unixtime_start << ", " << std::endl;
     out << "    \"zoom\": " << project.zoom << ", " << std::endl;
     out << "    \"next_task_id\":" << project.next_task_id << ", " << std::endl;
     out << "    \"tasks\": [" << std::endl;
@@ -692,7 +729,6 @@ void MainWindow::load_project(ganttry::Project & project, QString filename)
 
     QJsonObject doc_obj = QJsonDocument::fromJson(val.toUtf8()).object();
     project.name           = doc_obj.value(QString("name")).toString().toStdString();
-    project.unixtime_start = doc_obj.value(QString("unixtime_start")).toInt();
     project.zoom           = doc_obj.value(QString("zoom")).toInt();
     project.next_task_id   = doc_obj.value(QString("next_task_id")).toInt();
 
@@ -729,7 +765,24 @@ void MainWindow::load_project(ganttry::Project & project, QString filename)
                     )
                 );
         }
+        else if (tasks[i].toObject().contains("time_point"))
+        {
+            project.add_task(
+                std::make_unique<ganttry::Task_TimePoint>
+                    ( project
+                    , (ganttry::TaskID)tasks[i].toObject()["id"].toInt()
+                    , tasks[i].toObject()["name"].toString().toStdString()
+                    , tasks[i].toObject()["description"].toString().toStdString()
+                    , tasks[i].toObject()["time_point"].toInt()
+                    )
+                );
+        }
     }
+
+    // fix next_task_id if inconsisten
+    if ( ! project.tasks.empty() && project.next_task_id <= project.tasks.rbegin()->first)
+        project.next_task_id = project.tasks.rbegin()->first + 1;
+
     QJsonArray deps = doc_obj.value(QString("dependencies")).toArray();
     for (int i=0 ; i<deps.size() ; i++)
     {
@@ -801,7 +854,7 @@ void MainWindow::project_changed()
     displaying = true;
     ui->zoomSlider->setValue(workspace->get_current_project().zoom);
     QDateTime date_time = QDateTime::fromSecsSinceEpoch (workspace->get_current_project().get_unixtime_start());
-    ui->projectStartDateTimeEdit->setDateTime(date_time);
+    ui->timepointDateTimeEdit->setDateTime(date_time);
     displaying = false;
 }
 
@@ -937,19 +990,8 @@ void MainWindow::on_dependencyTableWidget_customContextMenuRequested(const QPoin
     }
 }
 
-
-void MainWindow::on_projectStartDateTimeEdit_dateTimeChanged(const QDateTime &dateTime)
+void MainWindow::on_timepointDateTimeEdit_dateTimeChanged(const QDateTime &dateTime)
 {
-    if (displaying)
-        return;
-    auto s = dateTime.toSecsSinceEpoch();
-    workspace->get_current_project().set_unixtime_start(s);
-    workspace->get_current_project().recalculate_start_offsets();
-
-    dates_scene.redraw();
-    names_scene.redraw();
-    gantt_scene.redraw();
-
-    on_taskSelectionChanged_triggered(gantt_scene.get_selected_row_id(), gantt_scene.get_selected_row_id());
+    updateTaskFromInput();
 }
 

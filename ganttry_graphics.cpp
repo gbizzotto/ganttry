@@ -25,6 +25,7 @@ void NamesGraphicsScene::contextMenuEvent(QGraphicsSceneContextMenuEvent *event)
 {
     QMenu menu(event->widget());
     QAction * action_add_task = menu.addAction("Add Task");
+    QAction * action_add_time_point = menu.addAction("Add Time point");
     QMenu * action_menu_project = menu.addMenu("Add Project as Task");
     QAction * action_delete_task = menu.addAction("Delete Task");
     std::vector<std::pair<QAction*,Project&>> projects_actions;
@@ -46,10 +47,19 @@ void NamesGraphicsScene::contextMenuEvent(QGraphicsSceneContextMenuEvent *event)
                 return -1;
         }();
 
+    if (task_id == 0)
+        action_delete_task->setEnabled(false);
+
     auto action = menu.exec(event->screenPos());
     if (action == action_add_task)
     {
         [[maybe_unused]] int id = project->add_task(0, "New task", 1, 0);
+        emit newRow();
+        gantt_scene->updateSelection(rows_info_.size()-1);
+    }
+    else if (action == action_add_time_point)
+    {
+        [[maybe_unused]] int id = project->add_time_point("New time point");
         emit newRow();
         gantt_scene->updateSelection(rows_info_.size()-1);
     }
@@ -95,12 +105,6 @@ void NamesGraphicsScene::redraw()
 
     int width = this->views()[0]->viewport()->width() - 1;
     qreal total_height(0);
-
-    // project start datetime
-    QGraphicsTextItem * start_item = this->addText(QString::fromStdString("Start" + project->name));
-    start_item->setPos(0, 0);
-    rows_info_.push_back(row_info{(int)start_item->boundingRect().height(), 0, {{0,project}}, nullptr, project->get_unixtime_start(), project->get_unixtime_end()});
-    total_height += start_item->boundingRect().height();
 
     // text
     std::function<void(ganttry::Project &, int, std::vector<std::tuple<TaskID,Project*>>, uint64_t)> redraw_project;
@@ -251,11 +255,37 @@ void DatesGraphicsScene::redraw()
     }
 }
 
-
-std::tuple<std::uint32_t,uint32_t> GanttGraphicsScene::get_bar_pixel_coords(const row_info & info)
+std::uint32_t GanttGraphicsScene::get_pixel_coord(nixtime t) const
 {
     QDateTime project_begin_date;
-    project_begin_date.setSecsSinceEpoch(project->unixtime_start);
+    project_begin_date.setSecsSinceEpoch(project->get_unixtime_start());
+
+    QDateTime task_begin;
+    task_begin.setSecsSinceEpoch(t);
+
+    if (project->zoom == 2)
+    {
+        int begin_day_idx = project_begin_date.daysTo(task_begin);
+
+        return std::accumulate(dates_scene.column_widths().begin(), dates_scene.column_widths().begin()+begin_day_idx, 0)
+               + dates_scene.column_widths()[begin_day_idx] * QDateTime(task_begin.date(), QTime(0,0,0)).secsTo(task_begin) / 86400
+             ;
+    }
+    else if (project->zoom == 1)
+    {
+        int begin_day_idx = project_begin_date.secsTo(task_begin) / 3600;
+
+        return std::accumulate(dates_scene.column_widths().begin(), dates_scene.column_widths().begin()+begin_day_idx, 0)
+              + dates_scene.column_widths()[begin_day_idx] * QDateTime(task_begin.date(), QTime(task_begin.time().hour(),0,0)).secsTo(task_begin) / 3600
+            ;
+    }
+    return 0;
+}
+
+std::tuple<std::uint32_t,std::uint32_t> GanttGraphicsScene::get_bar_pixel_coords(const row_info & info) const
+{
+    QDateTime project_begin_date;
+    project_begin_date.setSecsSinceEpoch(project->get_unixtime_start());
 
     QDateTime task_begin;
     QDateTime task_end;
@@ -354,18 +384,18 @@ void GanttGraphicsScene::redraw()
     qreal total_height(0);
     for (const row_info & info : names_scene.rows_info())
     {
-        auto [bar_pixel_begin, bar_pixel_end] = get_bar_pixel_coords(info);
-
         // project starting point
-        if (info.task == nullptr)
+        if (info.task->is_relative() == false)
         {
-            QGraphicsRectItem * item = this->addRect(bar_pixel_begin-4, total_height+info.height/2 - 4, 8, 8, QPen(QColor(0,0,0,255)), QBrush(QColor(0,0,0,255)));
+            auto pixel_pos = get_pixel_coord(info.unixime_start);
+            QGraphicsRectItem * item = this->addRect(pixel_pos-4, total_height+info.height/2 - 4, 8, 8, QPen(QColor(0,0,0,255)), QBrush(QColor(0,0,0,255*(info.task->get_id() == 0))));
             rotate_45(item);
+            bars_coords.push_back({total_height+info.height/2, pixel_pos, pixel_pos});
             total_height += info.height;
-            bars_coords.push_back({total_height+info.height/2, bar_pixel_begin, bar_pixel_end});
             continue;
         }
 
+        auto [bar_pixel_begin, bar_pixel_end] = get_bar_pixel_coords(info);
         [[maybe_unused]] QGraphicsRectItem * item;
         if (info.task->is_recursive())
             item = this->addRect(bar_pixel_begin, total_height+info.height/2-2, bar_pixel_end-bar_pixel_begin, 4, QPen(QColor(0,0,0,0)), QBrush(QColor(0,0,0,255)));
@@ -376,7 +406,7 @@ void GanttGraphicsScene::redraw()
     }
 
     // dependency arrows
-    int i=1;
+    int i=0;
     QPen normal_pen(QColor(255,0,0,128));
     normal_pen.setWidth(2);
     QPen highlight_pen(QColor(100,237,149,255));
@@ -601,6 +631,7 @@ void GanttGraphicsScene::mouseMoveEvent(QGraphicsSceneMouseEvent *mouseEvent)
         return;
     if (scene_up_pos.x() >= this->width()-1 || scene_up_pos.y() >= this->height()-1)
         return;
+
     // get point coords
     int task_down_id;
     int task_up_id;
@@ -610,9 +641,12 @@ void GanttGraphicsScene::mouseMoveEvent(QGraphicsSceneMouseEvent *mouseEvent)
     // check we're not pointing from and to the same object
     if (task_down_id == task_up_id)
         return;
-    // check the item is not a subproject
+    // check the item is not IN a subproject
     const ganttry::row_info & info = names_scene.rows_info()[task_up_id];
     if (info.project_tree_path.size() > 1)
+        return;
+    // check the item is not a time point
+    if ( ! info.task || ! info.task->is_relative())
         return;
 
     // new highlight

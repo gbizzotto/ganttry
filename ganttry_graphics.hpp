@@ -131,7 +131,8 @@ public:
     std::tuple<int,int> get_item_id(int scene_y);
     int get_selected_row_id() const { return selected_row_id; }
     void unselect_row();
-    std::tuple<std::uint32_t,uint32_t> get_bar_pixel_coords(const row_info & info);
+    std::uint32_t get_pixel_coord(nixtime t) const;
+    std::tuple<std::uint32_t,uint32_t> get_bar_pixel_coords(const row_info & info) const;
     virtual void contextMenuEvent(QGraphicsSceneContextMenuEvent *event) override;
     virtual void mousePressEvent(QGraphicsSceneMouseEvent *mouseEvent) override;
     virtual void mouseReleaseEvent(QGraphicsSceneMouseEvent *mouseEvent) override;

@@ -86,6 +86,17 @@ std::string Task_SubProject::get_full_display_name() const
     //return get_name() + ((get_name().size())?" < ":"") + child.name + " < " + get_project().name;
 }
 
+std::string Task_TimePoint::to_json(TaskID tid) const
+{
+    std::stringstream ss;
+    ss << "{\"id\": " << tid
+       << ", \"name\": \""              << this->get_name() << "\""
+       << ", \"description\": \""       << this->get_description() << "\""
+       << ", \"time_point\": "          << this->time_point
+       << "}"
+       ;
+    return ss.str();
+}
 
 Task_Base::Task_Base( Project & project
                     , TaskID id
@@ -297,12 +308,17 @@ uint64_t Task_SubProject::duration_in_seconds() const
     return child.duration_in_seconds();
 }
 
-//std::uint64_t ProjectInstance::unixtime_end_offset() const
-//{
-//    std::uint64_t end_unixtime = 0;
-//    for (auto & task : original.tasks)
-//        end_unixtime = std::max(end_unixtime, task.second->unixtime_end_offset());
-//    return end_unixtime;
-//}
+nixtime Task_TimePoint::get_unixtime_start_offset() const
+{
+    return time_point - get_project().get_unixtime_start();
+}
+
+
+void Task_TimePoint::set_time_point(nixtime t)
+{
+    get_project().changed |= (time_point != t);
+    time_point = t;
+}
 
 } // namespace
+
