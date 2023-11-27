@@ -396,7 +396,7 @@ void MainWindow::updateTaskFromInput()
     }
 
     ui->beginLabel->setText(QDateTime::fromSecsSinceEpoch(task.get_unixtime_start_offset()).toString("yyyy-MM-dd HH:mm"));
-    ui->  endLabel->setText(QDateTime::fromSecsSinceEpoch(task.unixtime_end_offset()).toString("yyyy-MM-dd HH:mm"));
+    ui->  endLabel->setText(QDateTime::fromSecsSinceEpoch(task.get_unixtime_end_offset()).toString("yyyy-MM-dd HH:mm"));
     if (ui->zoomSlider->value() == 2)
         ui->lastsLabel->setText(QString::fromStdString(std::to_string((task.duration_in_seconds()) / 86400)) + " days");
     else if (ui->zoomSlider->value() == 1)

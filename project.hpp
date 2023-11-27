@@ -16,6 +16,7 @@ namespace ganttry
 {
 
 using nixtime = std::uint64_t; // seconds since epoch
+using nixtime_diff = std::int64_t; // seconds since epoch
 
 enum DependencyType {
     BeginAfter,
@@ -79,7 +80,7 @@ public:
     inline auto & get_description          () const { return description          ; }
     inline auto & get_unit_count_forecast  () const { return unit_count_forecast  ; }
     inline auto & get_units_done_count     () const { return units_done_count     ; }
-    virtual inline nixtime get_unixtime_start_offset() const { return unixtime_start_offset; }
+    virtual inline nixtime_diff get_unixtime_start_offset() const { return unixtime_start_offset; }
     inline auto & get_parent_tasks         () const { return parent_tasks         ; }
     inline auto & get_children_tasks       () const { return children_tasks       ; }
 
@@ -93,8 +94,8 @@ public:
 
     //std::uint64_t unixtime_start() const;
 
-    virtual inline uint64_t unixtime_end_offset() const { return unixtime_start_offset + duration_in_seconds(); }
-    virtual uint64_t duration_in_seconds() const;
+    virtual inline nixtime_diff get_unixtime_end_offset() const { return unixtime_start_offset + duration_in_seconds(); }
+    virtual nixtime_diff duration_in_seconds() const;
     bool add_child_task(DependencyType d, Task_Base & t);
     bool add_parent_task(DependencyType d, Task_Base & t);
     bool remove_parent_task(TaskID task_id);
@@ -137,8 +138,8 @@ public:
     virtual std::string to_json(TaskID tid) const override;
     virtual inline std::string get_full_display_name() const override { return get_name(); }
 
-    virtual nixtime get_unixtime_start_offset() const override;
-    virtual inline uint64_t unixtime_end_offset() const override { return get_unixtime_start_offset(); }
+    virtual nixtime_diff get_unixtime_start_offset() const override;
+    virtual inline nixtime_diff get_unixtime_end_offset() const override { return get_unixtime_start_offset(); }
     inline virtual bool is_relative() const override { return false; }
 };
 
@@ -194,7 +195,7 @@ public:
     inline virtual bool is_recursive() const override { return true; }
     inline virtual Project * get_child() override { return &child; }
     virtual float duration_in_days() const override;
-    virtual uint64_t duration_in_seconds() const override;
+    virtual nixtime_diff duration_in_seconds() const override;
     virtual bool contains(const Project * const p) const override;
     virtual std::string to_json(TaskID tid) const override;
     virtual std::string get_full_display_name() const override;
@@ -219,6 +220,21 @@ struct Project
 
     inline nixtime get_unixtime_start() { return ((ganttry::Task_TimePoint*)(this->tasks[0].get()))->get_time_point(); }
     inline nixtime get_unixtime_end() { return get_unixtime_start() + duration_in_seconds(); }
+
+    inline nixtime get_unixtime_earliest()
+    {
+        nixtime_diff offset = std::numeric_limits<nixtime_diff>::max();
+        for (const auto & task_pair : tasks)
+            offset = std::min(offset, task_pair.second->get_unixtime_start_offset());
+        return this->get_unixtime_start() + offset;
+    }
+    inline nixtime get_unixtime_latest()
+    {
+        nixtime_diff offset = std::numeric_limits<nixtime_diff>::lowest();
+        for (const auto & task_pair : tasks)
+            offset = std::max(offset, task_pair.second->get_unixtime_end_offset());
+        return this->get_unixtime_start() + offset;
+    }
 
     inline void set_unixtime_start(std::uint64_t s_since_epoch)
     {
@@ -290,11 +306,11 @@ struct Project
             p.second->recalculate_start_offset();
     }
 
-    inline std::uint64_t duration_in_seconds() const
+    inline nixtime_diff duration_in_seconds() const
     {
-        std::uint64_t end_offset = 0;
+        nixtime_diff end_offset = 0;
         for (auto & task : tasks)
-            end_offset = std::max(end_offset, task.second->unixtime_end_offset());
+            end_offset = std::max(end_offset, task.second->get_unixtime_end_offset());
         return end_offset;
     }
 

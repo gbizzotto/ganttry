@@ -231,16 +231,16 @@ bool Task_Base::remove_child_task(TaskID task_id)
     return false;
 }
 
-uint64_t Task_Base::duration_in_seconds() const
+nixtime_diff Task_Base::duration_in_seconds() const
 {
     return 86400 * duration_in_days();
 }
 
 void Task_Base::recalculate_start_offset()
 {
-    uint64_t earliest_time = [&]()
+    nixtime_diff earliest_offset = [&]()
         {
-            uint64_t earliest_time = 0;
+            nixtime_diff earliest_offset = std::numeric_limits<nixtime_diff>::lowest();
             for (const Dependency & d : parent_tasks)
             {
                 auto it = project.tasks.find(d.task_id);
@@ -248,15 +248,15 @@ void Task_Base::recalculate_start_offset()
                     continue;                
                 const auto & task_base = *it->second;
                 if (d.type == DependencyType::BeginAfter)
-                    earliest_time = std::max(earliest_time, task_base.unixtime_end_offset());
+                    earliest_offset = std::max(earliest_offset, task_base.get_unixtime_end_offset());
                 else if (d.type == DependencyType::BeginWith)
-                    earliest_time = std::max(earliest_time, task_base.unixtime_start_offset);
+                    earliest_offset = std::max(earliest_offset, task_base.get_unixtime_start_offset());
             }
-            return earliest_time;
+            return earliest_offset;
         }();
-    uint64_t latest_time = [&]()
+    nixtime_diff latest_offset = [&]()
         {
-            auto latest_time = std::numeric_limits<uint64_t>::max();
+            nixtime_diff latest_offset = std::numeric_limits<nixtime_diff>::max();
             for (const Dependency & d : parent_tasks)
             {
                 auto it = project.tasks.find(d.task_id);
@@ -264,19 +264,19 @@ void Task_Base::recalculate_start_offset()
                     continue;
                 const auto & task = *it->second;
                 if (d.type == DependencyType::EndBefore)
-                    latest_time = std::min(latest_time, task.unixtime_start_offset - this->duration_in_seconds());
+                    latest_offset = std::min(latest_offset, task.get_unixtime_start_offset() - this->duration_in_seconds());
                 else if (d.type == DependencyType::EndWith)
-                    latest_time = std::min(latest_time, task.unixtime_end_offset() - this->duration_in_seconds());
+                    latest_offset = std::min(latest_offset, task.get_unixtime_end_offset() - this->duration_in_seconds());
             }
-            return latest_time;
+            return latest_offset;
         }();
 
-    if (earliest_time == 0 && latest_time == std::numeric_limits<uint64_t>::max())
+    if (earliest_offset == 0 && latest_offset == std::numeric_limits<nixtime_diff>::max())
         set_unixtime_start_offset(0);
-    else if (earliest_time == 0)
-        set_unixtime_start_offset(latest_time);
+    else if (earliest_offset == 0)
+        set_unixtime_start_offset(latest_offset);
     else
-        set_unixtime_start_offset(earliest_time);
+        set_unixtime_start_offset(earliest_offset);
 }
 
 bool Task_Base::find_descendent(TaskID id_)
@@ -303,14 +303,14 @@ bool Project::remove_task(TaskID id)
     return true;
 }
 
-uint64_t Task_SubProject::duration_in_seconds() const
+nixtime_diff Task_SubProject::duration_in_seconds() const
 {
     return child.duration_in_seconds();
 }
 
-nixtime Task_TimePoint::get_unixtime_start_offset() const
+nixtime_diff Task_TimePoint::get_unixtime_start_offset() const
 {
-    return time_point - get_project().get_unixtime_start();
+    return ((nixtime_diff)time_point) - get_project().get_unixtime_start();
 }
 
 
@@ -318,6 +318,7 @@ void Task_TimePoint::set_time_point(nixtime t)
 {
     get_project().changed |= (time_point != t);
     time_point = t;
+    this->set_unixtime_start_offset(t - get_project().get_unixtime_start());
 }
 
 } // namespace

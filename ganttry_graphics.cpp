@@ -211,8 +211,8 @@ void DatesGraphicsScene::redraw()
 
     qreal total_width(0);
 
-    QDateTime start_datetime = QDateTime::fromSecsSinceEpoch(project->get_unixtime_start());
-    QDateTime   end_datetime = QDateTime::fromSecsSinceEpoch(project->get_unixtime_end());
+    QDateTime start_datetime = QDateTime::fromSecsSinceEpoch(project->get_unixtime_earliest());
+    QDateTime   end_datetime = QDateTime::fromSecsSinceEpoch(project->get_unixtime_latest());
 
     if (project->zoom == 2)
     {
@@ -285,7 +285,7 @@ std::uint32_t GanttGraphicsScene::get_pixel_coord(nixtime t) const
 std::tuple<std::uint32_t,std::uint32_t> GanttGraphicsScene::get_bar_pixel_coords(const row_info & info) const
 {
     QDateTime project_begin_date;
-    project_begin_date.setSecsSinceEpoch(project->get_unixtime_start());
+    project_begin_date.setSecsSinceEpoch(project->get_unixtime_earliest());
 
     QDateTime task_begin;
     QDateTime task_end;
