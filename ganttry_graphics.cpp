@@ -560,6 +560,9 @@ void GanttGraphicsScene::mouseReleaseEvent(QGraphicsSceneMouseEvent *mouseEvent)
     const ganttry::row_info & info = names_scene.rows_info()[task_up_id];
     if (info.project_tree_path.size() > 1)
         return;
+    // check the item is not a time point
+    if ( ! info.task || ! info.task->is_relative())
+        return;
 
     QMenu menu(this->views()[0]);
     auto action_begin_after = menu.addAction("Begin after");
@@ -642,6 +645,8 @@ void GanttGraphicsScene::mouseMoveEvent(QGraphicsSceneMouseEvent *mouseEvent)
     if (task_down_id == task_up_id)
         return;
     // check the item is not IN a subproject
+    if (task_up_id >= (int)names_scene.rows_info().size())
+        return;
     const ganttry::row_info & info = names_scene.rows_info()[task_up_id];
     if (info.project_tree_path.size() > 1)
         return;
