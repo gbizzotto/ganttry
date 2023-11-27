@@ -456,8 +456,8 @@ void MainWindow::populate_template_combobox()
 
 void MainWindow::on_newDependency_triggered()
 {
-    dates_scene.redraw();
     names_scene.redraw();
+    dates_scene.redraw();
     gantt_scene.redraw();
 
     // refill dependency table, too

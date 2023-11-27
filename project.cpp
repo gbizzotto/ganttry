@@ -271,9 +271,11 @@ void Task_Base::recalculate_start_offset()
             return latest_offset;
         }();
 
-    if (earliest_offset == 0 && latest_offset == std::numeric_limits<nixtime_diff>::max())
+    if (  earliest_offset == std::numeric_limits<nixtime_diff>::lowest()
+         && latest_offset == std::numeric_limits<nixtime_diff>::max()
+        )
         set_unixtime_start_offset(0);
-    else if (earliest_offset == 0)
+    else if (earliest_offset == std::numeric_limits<nixtime_diff>::lowest())
         set_unixtime_start_offset(latest_offset);
     else
         set_unixtime_start_offset(earliest_offset);

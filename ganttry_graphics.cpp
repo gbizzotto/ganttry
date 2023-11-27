@@ -258,7 +258,7 @@ void DatesGraphicsScene::redraw()
 std::uint32_t GanttGraphicsScene::get_pixel_coord(nixtime t) const
 {
     QDateTime project_begin_date;
-    project_begin_date.setSecsSinceEpoch(project->get_unixtime_start());
+    project_begin_date.setSecsSinceEpoch(project->get_unixtime_earliest());
 
     QDateTime task_begin;
     task_begin.setSecsSinceEpoch(t);
@@ -593,6 +593,7 @@ void GanttGraphicsScene::mouseReleaseEvent(QGraphicsSceneMouseEvent *mouseEvent)
     if (got_action && task_down.add_child_task(dep, task_up) && task_up.add_parent_task(dep, task_down))
     {
         project->changed = true;
+        //project->recalculate_start_offsets();
         emit newDependency();
     }
 }
