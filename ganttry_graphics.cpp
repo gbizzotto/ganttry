@@ -113,14 +113,29 @@ void NamesGraphicsScene::redraw()
             for (auto & task : project.tasks)
             {
                 std::uint64_t nx_start_time = base_start_time + task.second->get_unixtime_start_offset();
-                std::uint64_t nx_end_time   = nx_start_time + task.second->duration_in_seconds();
+                std::uint64_t nx_end_time   = [&]()
+                    {
+                        if (task.first == 0)
+                            return nx_start_time + project.duration_in_seconds();
+                        else
+                            return base_start_time + task.second->get_unixtime_end_offset();
+                    }();
+                std::uint64_t nx_earliest_time = [&]()
+                    {
+                        if (task.first == 0)
+                            return nx_start_time + project.get_unixtime_earliest_offset();
+                        else if (task.second->is_recursive())
+                            return nx_start_time + (dynamic_cast<Task_SubProject*>(task.second.get()))->get_child()->get_unixtime_earliest_offset();
+                        else
+                            return nx_start_time;
+                    }();
 
                 QFont font = this->font();
                 if (depth > 0) // subtasks with smaller font
                     font.setPointSize(font.pointSize()-2);
                 QGraphicsTextItem * item = this->addText(QString::fromStdString(task.second->get_full_display_name()), font);
                 item->setPos(depth*indent, total_height);
-                rows_info_.push_back(row_info{(int)item->boundingRect().height(), depth, project_tree_path, task.second.get(), nx_start_time, nx_end_time});
+                rows_info_.push_back(row_info{(int)item->boundingRect().height(), depth, project_tree_path, task.second.get(), nx_earliest_time, nx_start_time, nx_end_time});
                 if (depth > 0) // gray subtasks
                     this->addRect(0, total_height, width, (int)item->boundingRect().height(), QPen(QColor(0,0,0,20)),QBrush(QColor(0,0,0,20)));
                 total_height += item->boundingRect().height();
@@ -211,12 +226,12 @@ void DatesGraphicsScene::redraw()
 
     qreal total_width(0);
 
-    QDateTime start_datetime = QDateTime::fromSecsSinceEpoch(project->get_unixtime_earliest());
-    QDateTime   end_datetime = QDateTime::fromSecsSinceEpoch(project->get_unixtime_latest());
+    QDateTime earliest_datetime = QDateTime::fromSecsSinceEpoch(project->get_unixtime_earliest());
+    QDateTime      end_datetime = QDateTime::fromSecsSinceEpoch(project->get_unixtime_latest());
 
     if (project->zoom == 2)
     {
-        for (auto day = start_datetime.date() ; day <= end_datetime.date() ; day = day.addDays(1))
+        for (auto day = earliest_datetime.date() ; day <= end_datetime.date() ; day = day.addDays(1))
         {
             QGraphicsTextItem * item = this->addText(day.toString("yyyy-MM-dd"));
             item->setRotation(270.0);
@@ -228,7 +243,7 @@ void DatesGraphicsScene::redraw()
     }
     else if (project->zoom == 1)
     {
-        QDateTime hour(start_datetime.date(), QTime(start_datetime.time().hour(), 0, 0));
+        QDateTime hour(earliest_datetime.date(), QTime(earliest_datetime.time().hour(), 0, 0));
         QDateTime latest_hour(end_datetime.date(), QTime(end_datetime.time().hour(), 0, 0));
         for ( ; hour <= latest_hour ; hour = hour.addSecs(3600))
         {

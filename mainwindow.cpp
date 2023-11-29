@@ -238,7 +238,7 @@ void MainWindow::on_taskSelectionChanged_triggered(int old_row_id, int new_row_i
         ui->lastsLabel->setText("");
         ui->nameLineEdit->setText("");
         ui->descriptionTextEdit->setText("");
-        ui->tempateComboBox->setCurrentText("");
+        ui->templateComboBox->setCurrentText("");
         ui->unitsForecastLineEdit->setText("");
         ui->unitsDoneLineEdit->setText("");
         ui->progressBar->setValue(0);
@@ -258,17 +258,32 @@ void MainWindow::on_taskSelectionChanged_triggered(int old_row_id, int new_row_i
             ui->taskInfoWidget->setEnabled(false);
 
         ganttry::Task_Base * task = info.task;
-        ui->beginLabel->setText(QDateTime::fromSecsSinceEpoch(info.unixime_start).toString("yyyy-MM-dd HH:mm"));
-        ui->  endLabel->setText(QDateTime::fromSecsSinceEpoch(info.unixime_end  ).toString("yyyy-MM-dd HH:mm"));
+
+        bool is_project       = task->is_recursive();
+        bool is_templated     = (task->is_relative() && ! task->is_recursive());
+        bool is_timepoint     = ! task->is_relative();
+        bool is_start         = task->get_id() == 0;
+        bool is_in_subproject = info.project_tree_path.size() > 1;
+
+        ui->beginLabel->setText(QDateTime::fromSecsSinceEpoch(info.unixime_earliest).toString("yyyy-MM-dd HH:mm"));
+        ui->  endLabel->setText(QDateTime::fromSecsSinceEpoch(info.unixime_end     ).toString("yyyy-MM-dd HH:mm"));
+        ganttry::nixtime duration_in_seconds = [&]() ->ganttry::nixtime
+            {
+                if (task->get_id() == 0)
+                    return std::get<1>(info.project_tree_path.back())->duration_in_seconds();
+                else
+                    return task->duration_in_seconds();
+            }();
         if (ui->zoomSlider->value() == 2)
-            ui->lastsLabel->setText(QString::fromStdString(std::to_string((task->duration_in_seconds()) / 86400.0)) + " days");
+            ui->lastsLabel->setText(QString::fromStdString(std::to_string(duration_in_seconds / 86400.0)) + " days");
         else if (ui->zoomSlider->value() == 1)
-            ui->lastsLabel->setText(QString::fromStdString(std::to_string((task->duration_in_seconds()) / 3600.0)) + " hours ");
+            ui->lastsLabel->setText(QString::fromStdString(std::to_string(duration_in_seconds / 3600.0)) + " hours ");
         ui->          progressBar->       setValue(100.0 * task->get_units_done_count() / task->get_unit_count_forecast());
         ui->         nameLineEdit->       setText(QString::fromStdString(task->get_name       ()));
         ui->  descriptionTextEdit->       setText(QString::fromStdString(task->get_description()));
 
-        if ( ! task->is_relative())
+
+        if (is_timepoint)
         {
             // it's a time point
             ui->unitsForecastLineEdit->setText("");
@@ -290,21 +305,38 @@ void MainWindow::on_taskSelectionChanged_triggered(int old_row_id, int new_row_i
             ui->projectWidget->setVisible(false);
             ui->label_43->setVisible         (true);
             ui->unitsLabel->setVisible       (true);
-            ui->label_48->setVisible         (true);
-            ui->unitsDoneLineEdit->setVisible(true);
         }
-        if (task->is_relative() && ! task->is_recursive())
+
+        if (is_templated)
         {
             // it's a templated task
-            int idx = ui->tempateComboBox->findData(QVariant::fromValue(dynamic_cast<ganttry::Task_Templated*>(task)->get_template_id()));
-            ui->tempateComboBox->setCurrentIndex(idx);
+            int idx = ui->templateComboBox->findData(QVariant::fromValue(dynamic_cast<ganttry::Task_Templated*>(task)->get_template_id()));
+            ui->templateComboBox->setCurrentIndex(idx);
+        }
 
-            ui->tempateComboBox->setVisible(true);
-        }
-        else
-        {
-            ui->tempateComboBox->setVisible(false);
-        }
+        ui->templateComboBox->setVisible(is_templated);
+
+        ui->label_41             ->setVisible( ! is_timepoint);
+        ui->unitsForecastLineEdit->setVisible( ! is_timepoint);
+
+        ui->label_48         ->setVisible(is_templated);
+        ui->unitsDoneLineEdit->setVisible(is_templated);
+        ui->label_48         ->setEnabled( ! is_in_subproject);
+        ui->unitsDoneLineEdit->setEnabled( ! is_in_subproject);
+
+        ui->progressBar->setVisible(is_start || ( ! is_timepoint));
+
+        ui->label     ->setVisible(is_start || ( ! is_timepoint));
+        ui->beginLabel->setVisible(is_start || ( ! is_timepoint));
+        ui->label_2   ->setVisible(is_start || ( ! is_timepoint));
+        ui->endLabel  ->setVisible(is_start || ( ! is_timepoint));
+
+        ui->label_42         ->setVisible(is_start || ( ! is_timepoint));
+        ui->costMaterialLabel->setVisible(is_start || ( ! is_timepoint));
+        ui->label_49         ->setVisible(is_start || ( ! is_timepoint));
+        ui->costManpowerLabel->setVisible(is_start || ( ! is_timepoint));
+        ui->label_3          ->setVisible(is_start || ( ! is_timepoint));
+        ui->lastsLabel       ->setVisible(is_start || ( ! is_timepoint));
 
         // dependencies
         ui->dependencyTableWidget->clearContents();
@@ -377,7 +409,7 @@ void MainWindow::updateTaskFromInput()
             || task.get_name               () != ui->nameLineEdit->text().toStdString()
             || task.get_unit_count_forecast() != units_forecast
             || task.get_units_done_count   () != units_done
-            || ((dynamic_cast<ganttry::Task_Templated*>(&task) != nullptr) && (dynamic_cast<ganttry::Task_Templated*>(&task)->get_template_id () != ui->tempateComboBox->currentData()))
+            || ((dynamic_cast<ganttry::Task_Templated*>(&task) != nullptr) && (dynamic_cast<ganttry::Task_Templated*>(&task)->get_template_id () != ui->templateComboBox->currentData()))
             || (!task.is_relative() && timepoint != dynamic_cast<ganttry::Task_TimePoint*>(&task)->get_time_point())
         ;
 
@@ -385,7 +417,7 @@ void MainWindow::updateTaskFromInput()
 
     task.set_name               (ui->nameLineEdit->text().toStdString());
     task.set_description        (ui->descriptionTextEdit->toPlainText().toStdString());
-    task.set_template_id        (ui->tempateComboBox->currentData().toUInt());
+    task.set_template_id        (ui->templateComboBox->currentData().toUInt());
     task.set_unit_count_forecast(units_forecast);
     task.set_units_done_count   (units_done);
 
@@ -395,19 +427,21 @@ void MainWindow::updateTaskFromInput()
         workspace->get_current_project().recalculate_start_offsets();
     }
 
-    ui->beginLabel->setText(QDateTime::fromSecsSinceEpoch(task.get_unixtime_start_offset()).toString("yyyy-MM-dd HH:mm"));
-    ui->  endLabel->setText(QDateTime::fromSecsSinceEpoch(task.get_unixtime_end_offset()).toString("yyyy-MM-dd HH:mm"));
-    if (ui->zoomSlider->value() == 2)
-        ui->lastsLabel->setText(QString::fromStdString(std::to_string((task.duration_in_seconds()) / 86400)) + " days");
-    else if (ui->zoomSlider->value() == 1)
-        ui->lastsLabel->setText(QString::fromStdString(std::to_string((task.duration_in_seconds()) / 3600)) + " hours");
-    ui->progressBar->setValue(100.0 * task.get_units_done_count() / task.get_unit_count_forecast());
+    //ui->beginLabel->setText(QDateTime::fromSecsSinceEpoch(task.get_unixtime_start_offset()).toString("yyyy-MM-dd HH:mm"));
+    //ui->  endLabel->setText(QDateTime::fromSecsSinceEpoch(task.get_unixtime_end_offset()).toString("yyyy-MM-dd HH:mm"));
+    //if (ui->zoomSlider->value() == 2)
+    //    ui->lastsLabel->setText(QString::fromStdString(std::to_string((task.duration_in_seconds()) / 86400)) + " days");
+    //else if (ui->zoomSlider->value() == 1)
+    //    ui->lastsLabel->setText(QString::fromStdString(std::to_string((task.duration_in_seconds()) / 3600)) + " hours");
+    //ui->progressBar->setValue(100.0 * task.get_units_done_count() / task.get_unit_count_forecast());
 
     if (redraw) {
         names_scene.redraw();
         dates_scene.redraw();
         gantt_scene.redraw();
     }
+
+    this->on_taskSelectionChanged_triggered(gantt_scene.get_selected_row_id(), gantt_scene.get_selected_row_id());
 
     bool is_changed = task.get_project().changed;
     if (is_changed != was_changed)
@@ -440,15 +474,15 @@ void MainWindow::populate_template_combobox()
 {
     displaying = true;
 
-    ui->tempateComboBox->clear();
+    ui->templateComboBox->clear();
     for (const auto & t : workspace->get_current_project().get_task_templates())
-        ui->tempateComboBox->addItem(QString::fromStdString(t.second.name), QVariant::fromValue(t.first));
+        ui->templateComboBox->addItem(QString::fromStdString(t.second.name), QVariant::fromValue(t.first));
 
     if (gantt_scene.get_selected_row_id() != -1)
     {
         auto task_it = workspace->get_current_project().tasks.find(gantt_scene.get_selected_row_id());
         if (task_it != workspace->get_current_project().tasks.end())
-            ui->tempateComboBox->setCurrentIndex(ui->tempateComboBox->findData((task_it->second)->get_template_id()));
+            ui->templateComboBox->setCurrentIndex(ui->templateComboBox->findData((task_it->second)->get_template_id()));
     }
 
     displaying = false;
@@ -889,22 +923,10 @@ void MainWindow::on_zoomSlider_valueChanged(int value)
     refresh_workspace_tree();
 
     dates_scene.redraw();
-    //names_scene.redraw();
+    names_scene.redraw();
     gantt_scene.redraw();
 
-    int row_id = gantt_scene.get_selected_row_id();
-    if (row_id == -1)
-        return;
-
-    auto it = workspace->get_current_project().tasks.find(row_id);
-    if (it == workspace->get_current_project().tasks.end())
-        return;
-
-    ganttry::Task_Base & task = *it->second;
-    if (value == 2)
-        ui->lastsLabel->setText(QString::fromStdString(std::to_string((task.duration_in_seconds()) / 86400)) + " days");
-    else if (value == 1)
-        ui->lastsLabel->setText(QString::fromStdString(std::to_string((task.duration_in_seconds()) / 3600)) + " hours");
+    this->on_taskSelectionChanged_triggered(gantt_scene.get_selected_row_id(), gantt_scene.get_selected_row_id());
 }
 
 void MainWindow::add_open_recent(const QString & pathName)

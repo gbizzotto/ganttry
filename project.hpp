@@ -223,10 +223,14 @@ struct Project
 
     inline nixtime get_unixtime_earliest()
     {
+        return get_unixtime_start() + get_unixtime_earliest_offset();
+    }
+    inline nixtime get_unixtime_earliest_offset()
+    {
         nixtime_diff offset = std::numeric_limits<nixtime_diff>::max();
         for (const auto & task_pair : tasks)
             offset = std::min(offset, task_pair.second->get_unixtime_start_offset());
-        return this->get_unixtime_start() + offset;
+        return offset;
     }
     inline nixtime get_unixtime_latest()
     {

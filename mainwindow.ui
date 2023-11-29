@@ -201,7 +201,7 @@
           </widget>
          </item>
          <item>
-          <widget class="QComboBox" name="tempateComboBox">
+          <widget class="QComboBox" name="templateComboBox">
            <property name="sizePolicy">
             <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
              <horstretch>0</horstretch>

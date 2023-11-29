@@ -21,6 +21,7 @@ struct row_info
     int depth;
     std::vector<std::tuple<TaskID,Project*>> project_tree_path;
     Task_Base * task;
+    std::uint64_t unixime_earliest;
     std::uint64_t unixime_start;
     std::uint64_t unixime_end;
 };
